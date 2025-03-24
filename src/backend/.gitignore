@@ -1,0 +1,8 @@
+.env
+.idea
+object_views
+agile3d/data
+agile3d/outputs
+
+
+*.pth
