@@ -4,7 +4,7 @@ import {PointCloudData} from '@/types/PointCloud';
 import {pointCloudService} from '@/services/PointCloudService';
 import {PerformanceLogger} from '@/utils/performance-logger';
 import {threeJsService} from '@/services/ThreeJsService';
-import {GridSpatialIndex} from '@/utils/GridSpatialIndex';
+import {GridSpatialIndex} from '@/utils/GridSpatialIndexUtil';
 
 /**
  * Composable for loading and managing point cloud data

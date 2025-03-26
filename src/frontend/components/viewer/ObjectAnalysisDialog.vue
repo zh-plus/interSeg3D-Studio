@@ -147,7 +147,7 @@
 
 <script lang="ts" setup>
 import {computed, PropType, ref, watch} from 'vue';
-import {getCssColorFromIndex} from '@/utils/color-utils';
+import {getCssColorFromIndex} from '@/utils/color.util';
 import {useDisplay} from 'vuetify';
 import {useApiStore, useUiStore} from '@/stores';
 

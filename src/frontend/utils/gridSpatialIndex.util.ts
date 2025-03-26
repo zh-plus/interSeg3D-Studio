@@ -1,5 +1,5 @@
 // A simple and efficient spatial index for 3D point clouds using a grid-based approach
-import {PerformanceLogger} from './performance-logger';
+import {PerformanceLoggerUtil} from './performanceLogger.util';
 
 /**
  * Options for building the spatial index
@@ -13,7 +13,7 @@ export interface SpatialIndexOptions {
 /**
  * A grid-based spatial index for quickly finding points in 3D space
  */
-export class GridSpatialIndex {
+export class GridSpatialIndexUtil {
     private cells: Map<string, number[]> = new Map();
     private cellSize: number;
     private pointCount: number = 0;
@@ -40,7 +40,7 @@ export class GridSpatialIndex {
         const logPerformance = options?.logPerformance ?? true;
 
         if (logPerformance) {
-            PerformanceLogger.start('build_spatial_index');
+            PerformanceLoggerUtil.start('build_spatial_index');
         }
 
         this.cells.clear();
@@ -68,7 +68,7 @@ export class GridSpatialIndex {
         }
 
         if (logPerformance) {
-            PerformanceLogger.end('build_spatial_index');
+            PerformanceLoggerUtil.end('build_spatial_index');
             console.log(`Built spatial index with ${this.cells.size} cells for ${this.pointCount} points`);
         }
 

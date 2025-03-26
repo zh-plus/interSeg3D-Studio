@@ -1,6 +1,6 @@
 import {ref, Ref} from 'vue';
 import * as THREE from 'three';
-import {GridSpatialIndex, SpatialIndexOptions} from '@/utils/GridSpatialIndex';
+import {GridSpatialIndex, SpatialIndexOptions} from '@/utils/GridSpatialIndexUtil';
 import {PointCloudData} from '@/types/PointCloud';
 import {PerformanceLogger} from '@/utils/performance-logger';
 
@@ -75,7 +75,7 @@ export function useSpatialIndex(options?: UseSpatialIndexOptions) {
 
             console.log(`Built spatial index with cell size ${cellSize.value} for ${geom.attributes.position.count} points`);
 
-            // Use a type assertion to tell TypeScript that this is indeed a GridSpatialIndex
+            // Use a type assertion to tell TypeScript that this is indeed a GridSpatialIndexUtil
             return spatialIndex.value as GridSpatialIndex;
         } catch (error) {
             console.error('Error building spatial index:', error);

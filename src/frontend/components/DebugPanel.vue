@@ -57,7 +57,7 @@
 
 <script lang="ts" setup>
 import {onMounted, ref} from 'vue';
-import {api} from '@/services/ApiService';
+import {api} from '@/services/api.service';
 import {useDebugTools} from '@/composables/useDebugTools';
 
 // Use our new debug tools composable

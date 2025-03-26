@@ -1,11 +1,11 @@
 import {defineStore} from 'pinia';
 import {computed, markRaw, ref} from 'vue';
 import * as THREE from 'three';
-import {PointCloudData, SegmentedPointCloud} from '@/types/PointCloudTypes';
-import {pointCloudService} from '@/services/PointCloudService';
-import {GridSpatialIndex} from '@/utils/GridSpatialIndex';
-import {PerformanceLogger} from '@/utils/performance-logger';
-import {threeJsService} from '@/services/ThreeJsService';
+import {PointCloudData, SegmentedPointCloud} from '@/types/pointCloud.types';
+import {pointCloudService} from '@/services/pointCloud.service';
+import {GridSpatialIndexUtil} from '@/utils/gridSpatialIndex.util';
+import {PerformanceLoggerUtil} from '@/utils/performanceLogger.util';
+import {threeJsService} from '@/services/threeJs.service';
 
 export const usePointCloudStore = defineStore('pointCloud', () => {
   // State
@@ -23,7 +23,7 @@ export const usePointCloudStore = defineStore('pointCloud', () => {
   const isLoading = ref(false);
   const loadingProgress = ref<number | null>(null);
   const loadingError = ref<string | null>(null);
-  const spatialIndex = ref<GridSpatialIndex | null>(null);
+  const spatialIndex = ref<GridSpatialIndexUtil | null>(null);
   const segmentedPointCloud = ref<SegmentedPointCloud | null>(null);
 
   // Getters
@@ -44,7 +44,7 @@ export const usePointCloudStore = defineStore('pointCloud', () => {
     segmentedPointCloud.value = null;
 
     try {
-      PerformanceLogger.start('load_point_cloud');
+      PerformanceLoggerUtil.start('load_point_cloud');
 
       // Load the point cloud
       const pointCloud = await pointCloudService.loadPLYFile(file, {
@@ -79,7 +79,7 @@ export const usePointCloudStore = defineStore('pointCloud', () => {
       // Build spatial index
       spatialIndex.value = pointCloudService.buildSpatialIndex(geometry);
 
-      PerformanceLogger.end('load_point_cloud');
+      PerformanceLoggerUtil.end('load_point_cloud');
       console.log(`Loaded point cloud with ${pointCloudData.value.pointCount} points`);
 
     } catch (error) {

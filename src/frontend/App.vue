@@ -328,7 +328,7 @@ import PointCloudViewer from './components/viewer/PointCloudViewer.vue';
 import DebugPanel from './components/DebugPanel.vue';
 import ObjectDescriptionCard from './components/viewer/ObjectDescriptionCard.vue';
 import ObjectAnalysisDialog from './components/viewer/ObjectAnalysisDialog.vue';
-import {getCssColorFromIndex} from './utils/color-utils';
+import {getCssColorFromIndex} from './utils/color.util';
 
 // Import Pinia stores
 import {useAnnotationStore, useApiStore, usePointCloudStore, useUiStore} from './stores';

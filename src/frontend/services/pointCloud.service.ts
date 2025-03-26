@@ -2,11 +2,11 @@ import {markRaw} from 'vue';
 import * as THREE from 'three';
 import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls';
 import {PLYLoader} from 'three/examples/jsm/loaders/PLYLoader';
-import {PointCloudData, PointCloudLoadOptions, SegmentedPointCloud} from '@/types/PointCloudTypes';
-import {PerformanceLogger} from '@/utils/performance-logger';
-import {GridSpatialIndex} from '@/utils/GridSpatialIndex';
-import {getColorFromIndex} from '@/utils/color-utils';
-import {threeJsService} from '@/services/ThreeJsService'
+import {PointCloudData, PointCloudLoadOptions, SegmentedPointCloud} from '@/types/pointCloud.types';
+import {PerformanceLoggerUtil} from '@/utils/performanceLogger.util';
+import {GridSpatialIndexUtil} from '@/utils/gridSpatialIndex.util';
+import {getColorFromIndex} from '@/utils/color.util';
+import {threeJsService} from '@/services/threeJs.service'
 
 /**
  * Service for loading and managing point cloud data
@@ -22,7 +22,7 @@ class PointCloudService {
         file: File,
         options?: PointCloudLoadOptions
     ): Promise<THREE.Points> {
-        PerformanceLogger.start('load_ply_file');
+        PerformanceLoggerUtil.start('load_ply_file');
 
         // Validate file
         if (!file.name.toLowerCase().endsWith('.ply')) {
@@ -69,7 +69,7 @@ class PointCloudService {
             // Create and return Points object, marked as raw
             const pointCloud = markRaw(new THREE.Points(geometry, material));
 
-            PerformanceLogger.end('load_ply_file');
+            PerformanceLoggerUtil.end('load_ply_file');
             return pointCloud;
         } finally {
             // Clean up URL
@@ -86,8 +86,8 @@ class PointCloudService {
     public buildSpatialIndex(
         geometry: THREE.BufferGeometry,
         cellSize?: number
-    ): GridSpatialIndex {
-        PerformanceLogger.start('build_spatial_index');
+    ): GridSpatialIndexUtil {
+        PerformanceLoggerUtil.start('build_spatial_index');
 
         if (!geometry.attributes.position) {
             throw new Error('Geometry has no position attribute');
@@ -116,10 +116,10 @@ class PointCloudService {
         }
 
         // Create and build index
-        const index = new GridSpatialIndex(cellSize);
+        const index = new GridSpatialIndexUtil(cellSize);
         index.build(geometry.attributes.position.array as Float32Array);
 
-        PerformanceLogger.end('build_spatial_index');
+        PerformanceLoggerUtil.end('build_spatial_index');
         return index;
     }
 
@@ -133,11 +133,11 @@ class PointCloudService {
         data: PointCloudData,
         segmentation: SegmentedPointCloud
     ): boolean {
-        PerformanceLogger.start('apply_segmentation');
+        PerformanceLoggerUtil.start('apply_segmentation');
 
         if (!data.geometry || !data.currentColors || !data.originalColors) {
             console.error('Missing required data for segmentation');
-            PerformanceLogger.end('apply_segmentation');
+            PerformanceLoggerUtil.end('apply_segmentation');
             return false;
         }
 
@@ -145,7 +145,7 @@ class PointCloudService {
         if (!segmentation.segmentation ||
             segmentation.segmentation.length !== data.pointCount) {
             console.error(`Segmentation size mismatch: got ${segmentation.segmentation?.length || 0}, expected ${data.pointCount}`);
-            PerformanceLogger.end('apply_segmentation');
+            PerformanceLoggerUtil.end('apply_segmentation');
             return false;
         }
 
@@ -197,7 +197,7 @@ class PointCloudService {
             }
         }
 
-        PerformanceLogger.end('apply_segmentation');
+        PerformanceLoggerUtil.end('apply_segmentation');
         return true;
     }
 

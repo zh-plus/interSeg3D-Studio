@@ -1,12 +1,12 @@
 import {defineStore} from 'pinia';
 import {computed, ref} from 'vue';
 import * as THREE from 'three';
-import {ClickPoint} from '@/types/SelectionTypes';
-import {AnnotationMarker, ClickAction, MarkerOptions} from '@/types/AnnotationTypes';
-import {threeJsService} from '@/services/ThreeJsService';
-import {getSelectionColor} from '@/utils/color-utils';
-import {usePointCloudStore} from './pointCloudStore';
-import {useUiStore} from './uiStore';
+import {ClickPoint} from '@/types/selection.types';
+import {AnnotationMarker, ClickAction, MarkerOptions} from '@/types/annotation.types';
+import {threeJsService} from '@/services/threeJs.service';
+import {getSelectionColor} from '@/utils/color.util';
+import {usePointCloudStore} from './pointCloud.store';
+import {useUiStore} from './ui.store';
 
 // Interface for history actions
 interface SelectionHistoryAction {

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls';
-import {ThreeJsContext, ThreeJsInitOptions, ViewportOptions} from '@/types/ThreeJsTypes';
+import {ThreeJsContext, ThreeJsInitOptions, ViewportOptions} from '@/types/threeJs.types';
 
 /**
  * Service to manage Three.js setup and rendering
@@ -366,6 +366,7 @@ class ThreeJsService {
         // Dispose renderer
         if (this.context.renderer) {
             this.context.renderer.dispose();
+            this.context.renderer.forceContextLoss();
             const domElement = this.context.renderer.domElement;
             if (domElement && domElement.parentNode) {
                 domElement.parentNode.removeChild(domElement);
@@ -373,15 +374,16 @@ class ThreeJsService {
             this.context.renderer = null;
         }
 
-        // Clean up controls
-        if (this.context.controls) {
-            this.context.controls.dispose();
-            this.context.controls = null;
-        }
-
         // Clean up point cloud
         if (this.context.pointCloud && this.context.scene) {
             this.context.scene.remove(this.context.pointCloud);
+
+            // Dispose of geometry
+            if (this.context.pointCloud.geometry) {
+                this.context.pointCloud.geometry.dispose();
+            }
+
+            // Dispose of material(s)
             if (this.context.pointCloud.material) {
                 if (Array.isArray(this.context.pointCloud.material)) {
                     this.context.pointCloud.material.forEach(m => m.dispose());
@@ -389,31 +391,112 @@ class ThreeJsService {
                     this.context.pointCloud.material.dispose();
                 }
             }
+
+            // Clear references
             this.context.pointCloud = null;
         }
 
-        // Clean up point geometry
-        if (this.context.pointGeometry) {
-            this.context.pointGeometry.dispose();
-            this.context.pointGeometry = null;
-        }
-
-        // Clear scene
+        // Clear scene with proper resource disposal
         if (this.context.scene) {
-            // Remove and dispose all objects
-            while (this.context.scene.children.length > 0) {
-                const object = this.context.scene.children[0];
-                this.context.scene.remove(object);
-            }
+            this.disposeSceneResources(this.context.scene);
             this.context.scene = null;
         }
 
-        // Clear camera and raycaster
+        // Clear other references
         this.context.camera = null;
         this.context.raycaster = null;
-
-        // Reset animation state
+        this.context.controls = null;
+        this.context.pointGeometry = null;
         this.context.isAnimating = false;
+    }
+
+    // New helper method to properly dispose scene resources
+    private disposeSceneResources(scene: THREE.Scene): void {
+        // Process all scene objects to ensure proper disposal
+        scene.traverse((object) => {
+            // Remove from parent
+            if (object.parent) {
+                object.parent.remove(object);
+            }
+
+            // Dispose geometry
+            if (object instanceof THREE.Mesh || object instanceof THREE.Points) {
+                if (object.geometry) {
+                    object.geometry.dispose();
+                }
+
+                // Dispose material
+                if (object.material) {
+                    if (Array.isArray(object.material)) {
+                        object.material.forEach(material => {
+                            this.disposeMaterial(material);
+                        });
+                    } else {
+                        this.disposeMaterial(object.material);
+                    }
+                }
+            }
+        });
+
+        // Clear all children
+        while (scene.children.length > 0) {
+            scene.remove(scene.children[0]);
+        }
+    }
+
+    // Helper to dispose material and its textures
+    private disposeMaterial(material: THREE.Material): void {
+        // Helper function for common textures that exist on multiple material types
+        const disposeCommonTextures = (mat: THREE.Material & {
+            map?: THREE.Texture | null;
+            lightMap?: THREE.Texture | null;
+            aoMap?: THREE.Texture | null;
+            alphaMap?: THREE.Texture | null;
+            envMap?: THREE.Texture | null;
+        }) => {
+            if (mat.map) mat.map.dispose();
+            if (mat.lightMap) mat.lightMap.dispose();
+            if (mat.aoMap) mat.aoMap.dispose();
+            if (mat.alphaMap) mat.alphaMap.dispose();
+            if (mat.envMap) mat.envMap.dispose();
+        };
+
+        // Handle MeshBasicMaterial
+        if (material instanceof THREE.MeshBasicMaterial) {
+            disposeCommonTextures(material);
+            // BasicMaterial has no additional textures to dispose
+        }
+
+        // Handle MeshPhongMaterial
+        if (material instanceof THREE.MeshPhongMaterial) {
+            disposeCommonTextures(material);
+            // Dispose Phong-specific textures
+            if (material.emissiveMap) material.emissiveMap.dispose();
+            if (material.bumpMap) material.bumpMap.dispose();
+            if (material.normalMap) material.normalMap.dispose();
+            if (material.displacementMap) material.displacementMap.dispose();
+        }
+
+        // Handle MeshStandardMaterial
+        if (material instanceof THREE.MeshStandardMaterial) {
+            disposeCommonTextures(material);
+            // Dispose Standard-specific textures
+            if (material.emissiveMap) material.emissiveMap.dispose();
+            if (material.bumpMap) material.bumpMap.dispose();
+            if (material.normalMap) material.normalMap.dispose();
+            if (material.displacementMap) material.displacementMap.dispose();
+            if (material.roughnessMap) material.roughnessMap.dispose();
+            if (material.metalnessMap) material.metalnessMap.dispose();
+        }
+
+        // Handle PointsMaterial
+        if (material instanceof THREE.PointsMaterial) {
+            disposeCommonTextures(material);
+            // PointsMaterial has no additional textures to dispose
+        }
+
+        // Dispose the material itself
+        material.dispose();
     }
 
     /**

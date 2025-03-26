@@ -100,8 +100,8 @@
 
 <script lang="ts" setup>
 import {PropType, ref, watch} from 'vue';
-import {AnnotationMarker} from '@frontend/types/AnnotationTypes';
-import {getCssColorFromIndex} from '@/utils/color-utils';
+import {AnnotationMarker} from '@frontend/types/annotation.types';
+import {getCssColorFromIndex} from '@frontend/utils/color.util';
 import * as THREE from 'three';
 
 // Props
