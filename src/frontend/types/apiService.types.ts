@@ -1,5 +1,5 @@
-// Export updated MaskObjectDetectionResult interface with optional obj_id field
-export interface MaskObjectDetectionResult {
+// Export updated MaskObjectRecognitionResult interface with optional obj_id field
+export interface MaskObjectRecognitionResult {
     selected_views: number[];
     description: string;
     label: string;

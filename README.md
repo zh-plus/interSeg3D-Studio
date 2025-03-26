@@ -1,7 +1,7 @@
 # interSeg3D-Studio
 
 An web-based interactive 3D point cloud annotation tool, using [AGILE3D](https://github.com/ywyue/AGILE3D) for
-click-based segmentation algorithm and Gemini for 3D object detection.
+click-based segmentation algorithm and Gemini for 3D object recognition & description.
 
 > [!NOTE]  
 > Note that this project is still in development. The current version is a prototype and may contain bugs.
@@ -16,8 +16,7 @@ click-based segmentation algorithm and Gemini for 3D object detection.
   with [AGILE3D model](https://github.com/ywyue/AGILE3D)
   ![seg-demo.gif](assets/seg-demo.gif)
 - **Object Analysis**: Automatically identify and describe objects in your scene
-
-![Analyze](assets/Object%20Analyze.png)
+  ![Analyze](assets/Object%20Analyze.png)
 
 ## Installation
 
@@ -44,7 +43,7 @@ click-based segmentation algorithm and Gemini for 3D object detection.
 4. Create a `.env` file in the `src/backend` directory with:
 
    ```
-   GOOGLE_API_KEY='your_google_api_key'  # For object detection
+   GOOGLE_API_KEY='your_google_api_key'  # For object recognition
    ```
 
 ### Frontend Setup
@@ -89,7 +88,8 @@ click-based segmentation algorithm and Gemini for 3D object detection.
 4. **Mark points** on the object by clicking on the point cloud
 5. **Mark background** by switching to "Background" mode and clicking non-object areas
 6. **Run segmentation** by clicking the "RUN SEGMENTATION" button
-7. **Analyze objects** to automatically identify and describe them
+7. **Analyze objects** to automatically identify and describe them (remember to click `APPLY LABEL` or
+   `APPLY ALL RESULTS`)
 8. **Save results** to download the segmented point cloud
 
 ### Keyboard Shortcuts
@@ -108,7 +108,8 @@ click-based segmentation algorithm and Gemini for 3D object detection.
 ## How it works
 
 After segmenting the project interactively using clicks, all the objects are scanned from multiple angles and analyzed
-using the AI object detection model. The model uses the LLM API to identify the objects and provide a description of the
+using the AI object recognition model. The model uses the LLM API to identify the objects and provide a description of
+the
 object. The description includes the object's name, color, and size.
 
 For example, the object are indicated using convex hulls and the cameras are positioned at green spheres.
@@ -127,7 +128,7 @@ For example, the object are indicated using convex hulls and the cameras are pos
 │   │   ├── app.py                # FastAPI server
 │   │   ├── inference.py          # Segmentation model
 │   │   ├── view_rendering.py     # View generation
-│   │   └── visual_obj_detection.py  # AI object detection
+│   │   └── visual_obj_recognition.py  # AI object recognition
 │   └── frontend
 │       ├── App.vue               # Main application component
 │       ├── components            # Vue components

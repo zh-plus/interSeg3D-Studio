@@ -1,7 +1,7 @@
 import {defineStore} from 'pinia';
 import {computed, ref} from 'vue';
 import {apiService} from '@/services/api.service';
-import {InferenceRequest, MaskObjectDetectionResult} from '@/types/apiService.types';
+import {InferenceRequest, MaskObjectRecognitionResult} from '@/types/apiService.types';
 import {usePointCloudStore} from './pointCloud.store';
 import {useAnnotationStore} from './annotation.store';
 import {useUiStore} from './ui.store';
@@ -19,7 +19,7 @@ export const useApiStore = defineStore('api', () => {
   const isDownloading = ref(false);
   const processingMessage = ref('');
   const operationLock = ref(false);
-  const analysisResults = ref<MaskObjectDetectionResult[]>([]);
+  const analysisResults = ref<MaskObjectRecognitionResult[]>([]);
 
   // Computed
   const hasResults = computed(() => analysisResults.value.length > 0);
@@ -155,7 +155,7 @@ export const useApiStore = defineStore('api', () => {
     analysisResults.value = [];
 
     try {
-      const response = await apiService.runMaskObjectDetection(
+      const response = await apiService.runMaskObjectRecognition(
           pointCloudStore.segmentedPointCloud.segmentation
       );
 

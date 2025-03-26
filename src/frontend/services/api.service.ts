@@ -18,20 +18,20 @@ export interface InferenceResponse {
     segmentedPointCloud: SegmentedPointCloud;
 }
 
-export interface MaskObjectDetectionRequest {
+export interface MaskObjectRecognitionRequest {
     mask: number[];
 }
 
-export interface MaskObjectDetectionResult {
+export interface MaskObjectRecognitionResult {
     selected_views: number[];
     description: string;
     label: string;
     cost?: number;
 }
 
-export interface MaskObjectDetectionResponse {
+export interface MaskObjectRecognitionResponse {
     message: string;
-    result: MaskObjectDetectionResult[];
+    result: MaskObjectRecognitionResult[];
 }
 
 export interface ApiErrorInfo {
@@ -251,19 +251,19 @@ class ApiService {
     }
 
     /**
-     * Run mask-based object detection on the segmented point cloud
+     * Run mask-based object recognition on the segmented point cloud
      * @param mask Array of integer values representing the segmentation mask
-     * @returns Promise with object detection results
+     * @returns Promise with object recognition results
      */
-    async runMaskObjectDetection(mask: number[]): Promise<AxiosResponse<MaskObjectDetectionResponse>> {
-        console.log('Running object detection with mask of length:', mask.length);
+    async runMaskObjectRecognition(mask: number[]): Promise<AxiosResponse<MaskObjectRecognitionResponse>> {
+        console.log('Running object recognition with mask of length:', mask.length);
 
         try {
-            return await api.post<MaskObjectDetectionResponse>('/mask_obj_detection', {
+            return await api.post<MaskObjectRecognitionResponse>('/mask_obj_recognition', {
                 mask: mask
             });
         } catch (error) {
-            console.error('Object detection failed:', error);
+            console.error('object recognition failed:', error);
             if (axios.isAxiosError(error) && error.response) {
                 console.error('Response status:', error.response.status);
                 console.error('Response data:', error.response.data);

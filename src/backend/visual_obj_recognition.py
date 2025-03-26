@@ -44,9 +44,9 @@ def get_cost(response):
     return cost
 
 
-def mask_obj_detection(point_cloud_path: str | Path, mask: np.ndarray | str, obj_id: int) -> Tuple[str, float]:
+def mask_obj_recognition(point_cloud_path: str | Path, mask: np.ndarray | str, obj_id: int) -> Tuple[str, float]:
     """
-    Performs mask-based object detection on a given point cloud using the provided mask.
+    Performs mask-based object recognition on a given point cloud using the provided mask.
 
     This function generates rendered views of the masked object, sends these images along with a prompt
     to the Gemini-2.0-flash model, and returns the model's response text along with the computed cost.
@@ -54,7 +54,7 @@ def mask_obj_detection(point_cloud_path: str | Path, mask: np.ndarray | str, obj
     Args:
         point_cloud_path (str | Path): Path to the 3D point cloud file.
         mask (np.ndarray | str): The mask used to highlight the object of interest. This can be a numpy array or a file path.
-        obj_id (int): The ID of the object to detect.
+        obj_id (int): The ID of the object to recognize.
 
     Returns:
         Tuple[str, float]: A tuple where the first element is the response text from the model and the second element is the cost of the request.
@@ -151,7 +151,7 @@ if __name__ == '__main__':
         output_dir="./outputs"
     )
 
-    result = mask_obj_detection(
+    result = mask_obj_recognition(
         point_cloud_path=pcd_path,
         mask=mask,
         obj_id=2

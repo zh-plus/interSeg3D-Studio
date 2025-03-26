@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 # Import the inference module
 from inference import Click, ClickHandler, PointCloudInference
-from visual_obj_detection import mask_obj_detection
+from visual_obj_recognition import mask_obj_recognition
 
 # Create static directory if it doesn't exist
 static_dir = os.path.join(os.getcwd(), "static")
@@ -211,16 +211,16 @@ async def run_inference(request: InferenceRequest):
         )
 
 
-def mask_obj_detection_worker(args):
+def mask_obj_recognition_worker(args):
     obj_id, point_cloud_path, mask_np = args
     # Use mask_np.copy() if necessary to avoid sharing issues.
-    return mask_obj_detection(point_cloud_path, mask_np.copy(), obj_id)
+    return mask_obj_recognition(point_cloud_path, mask_np.copy(), obj_id)
 
 
-@app.post("/api/mask_obj_detection")
-async def run_mask_obj_detection(request: MaskObjDetectionRequest):
+@app.post("/api/mask_obj_recognition")
+async def run_mask_obj_recognition(request: MaskObjDetectionRequest):
     """
-    Run mask-based object detection on the current point cloud using provided mask.
+    Run mask-based object recognition on the current point cloud using provided mask.
 
     The request body should contain a field "mask" that is a list of integers where:
       - 0 represents the background
@@ -267,10 +267,10 @@ async def run_mask_obj_detection(request: MaskObjDetectionRequest):
         # Process each object in parallel.
         import multiprocessing
         with multiprocessing.Pool() as pool:
-            result = pool.map(mask_obj_detection_worker, work_args)
+            result = pool.map(mask_obj_recognition_worker, work_args)
 
         return JSONResponse(content={
-            "message": "Mask object detection completed successfully",
+            "message": "Mask object recognition completed successfully",
             "result": result
         })
     except Exception as e:
@@ -278,7 +278,7 @@ async def run_mask_obj_detection(request: MaskObjDetectionRequest):
         traceback.print_exc()
         return JSONResponse(
             status_code=500,
-            content={"message": f"Error running mask object detection: {str(e)}"}
+            content={"message": f"Error running mask object recognition: {str(e)}"}
         )
 
 
