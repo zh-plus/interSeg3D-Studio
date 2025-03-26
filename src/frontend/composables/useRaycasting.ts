@@ -1,29 +1,35 @@
-import {ref, Ref} from 'vue';
+import { ref, Ref, computed } from 'vue';
 import * as THREE from 'three';
-import {PointCloudData} from '@/types/PointCloud';
-import {ClickResult, RaycastResult} from '@/types/Selection';
-import {threeJsService} from '@/services/ThreeJsService';
-import {PerformanceLogger} from '@/utils/performance-logger';
-import {GridSpatialIndex} from '@/utils/GridSpatialIndex';
+import { ClickResult, RaycastResult } from '@/types/Selection';
+import { threeJsService } from '@/services/ThreeJsService';
+import { PerformanceLogger } from '@/utils/performance-logger';
+import { usePointCloudStore } from '@/stores';
 
 interface UseRaycastingOptions {
-    // Reference to spatial index for optimized point finding
-    spatialIndex?: Ref<GridSpatialIndex | null>;
-    // Point cloud data
-    pointCloudData?: Ref<PointCloudData>;
-    // Size of selection cube
-    cubeSize?: Ref<number>;
     // Reference to the container element
     container?: Ref<HTMLElement | null>;
+    // Optional cube size override (defaults to using store value)
+    cubeSize?: Ref<number>;
 }
 
 /**
  * Composable for handling raycasting and point selection
  */
 export function useRaycasting(options?: UseRaycastingOptions) {
+    // Get the point cloud store
+    const pointCloudStore = usePointCloudStore();
+
     // State
     const isProcessingSelection = ref(false);
     const lastMousePosition = ref<THREE.Vector2 | null>(null);
+
+    // Computed to get the current cube size (from options or defaults)
+    const currentCubeSize = computed(() => {
+        if (options?.cubeSize?.value !== undefined) {
+            return options.cubeSize.value;
+        }
+        return 0.02; // Default cube size
+    });
 
     /**
      * Update the mouse position for raycasting
@@ -87,12 +93,10 @@ export function useRaycasting(options?: UseRaycastingOptions) {
             context.raycaster.params.Points = {threshold};
         } else {
             // Scale threshold with point density if available
-            if (options?.pointCloudData?.value) {
-                const pointCount = options.pointCloudData.value.pointCount;
-                if (pointCount > 0) {
-                    const optimalThreshold = Math.max(0.01, Math.min(0.03, 5000 / Math.sqrt(pointCount)));
-                    context.raycaster.params.Points = {threshold: optimalThreshold};
-                }
+            const pointCount = pointCloudStore.pointCloudData.pointCount;
+            if (pointCount > 0) {
+                const optimalThreshold = Math.max(0.01, Math.min(0.03, 5000 / Math.sqrt(pointCount)));
+                context.raycaster.params.Points = {threshold: optimalThreshold};
             }
         }
 
@@ -146,14 +150,15 @@ export function useRaycasting(options?: UseRaycastingOptions) {
         PerformanceLogger.start('find_nearest_point');
 
         // Use spatial index if available
-        if (options?.spatialIndex?.value && options?.pointCloudData?.value.positions) {
-            const pointIndices = options.spatialIndex.value.findPointsInCube(
+        if (pointCloudStore.spatialIndex && pointCloudStore.pointCloudData.positions) {
+            const cubeSize = currentCubeSize.value || 0.02;
+            const pointIndices = pointCloudStore.spatialIndex.findPointsInCube(
                 [position.x, position.y, position.z],
-                options?.cubeSize?.value || 0.02
+                cubeSize
             );
 
             if (pointIndices && pointIndices.length > 0) {
-                const positions = options.pointCloudData.value.positions;
+                const positions = pointCloudStore.pointCloudData.positions;
                 let minDist = Number.MAX_VALUE;
                 let nearestIndex = -1;
 

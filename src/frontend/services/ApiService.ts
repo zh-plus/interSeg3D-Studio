@@ -3,7 +3,7 @@ import {SegmentedPointCloud} from '@/types/PointCloud';
 import {ApiClickData} from '@/types/Annotation';
 
 // Configuration from environment variables
-const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'http://172.18.35.200:9001';
+const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'http://172.18.35.200:9500';
 const USE_PROXY = import.meta.env.VITE_USE_PROXY !== 'false';
 
 // Interfaces for API requests and responses

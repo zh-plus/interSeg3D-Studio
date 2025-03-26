@@ -51,7 +51,7 @@ An web-based interactive 3D point cloud segmentation and annotation tool with AI
 
 2. Create a `.env` file in the `src/frontend` directory with:
    ```
-   VITE_API_BASE_URL=http://localhost:9001
+   VITE_API_BASE_URL=http://localhost:9500
    VITE_USE_PROXY=true
    ```
 

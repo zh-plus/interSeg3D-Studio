@@ -25,52 +25,49 @@
 
     <v-card-actions v-if="showActions">
       <v-spacer></v-spacer>
-      <v-btn color="primary" text @click="$emit('close')">Close</v-btn>
+      <v-btn color="primary" text @click="closeDialog">Close</v-btn>
     </v-card-actions>
   </v-card>
 </template>
 
-<script lang="ts">
-import {computed, defineComponent, PropType} from 'vue';
+<script lang="ts" setup>
+import { computed, PropType } from 'vue';
+import { useUiStore, ObjectData } from '@/stores';
 
-interface ObjectData {
-  id: number;
-  name: string;
-  description?: string;
-}
+// Store instance
+const uiStore = useUiStore();
 
-export default defineComponent({
-  name: 'ObjectDescriptionCard',
-
-  props: {
-    object: {
-      type: Object as PropType<ObjectData | null>,
-      default: null
-    },
-    loading: {
-      type: Boolean,
-      default: false
-    },
-    showActions: {
-      type: Boolean,
-      default: true
-    }
+// Props definition
+const props = defineProps({
+  object: {
+    type: Object as PropType<ObjectData | null>,
+    default: null
   },
-
-  emits: ['close'],
-
-  setup(props) {
-    const chipColor = computed(() => {
-      if (!props.object) return 'grey';
-      const hue = (props.object.id * 50) % 360;
-      return `hsl(${hue}, 80%, 40%)`;
-    });
-
-    return {
-      chipColor
-    };
+  loading: {
+    type: Boolean,
+    default: false
+  },
+  showActions: {
+    type: Boolean,
+    default: true
   }
 });
+
+// Emit events
+const emit = defineEmits(['close']);
+
+// Computed properties
+const chipColor = computed(() => {
+  if (!props.object) return 'grey';
+  const hue = (props.object.id * 50) % 360;
+  return `hsl(${hue}, 80%, 40%)`;
+});
+
+// Methods
+function closeDialog() {
+  emit('close');
+  uiStore.showDescriptionDialog = false;
+}
 </script>
 
 <style scoped>
@@ -102,11 +99,6 @@ export default defineComponent({
   padding: 2rem;
   color: #757575;
   text-align: center;
-}
-
-.no-description .v-icon {
-  font-size: 3rem;
-  margin-bottom: 1rem;
 }
 
 .hint-text {

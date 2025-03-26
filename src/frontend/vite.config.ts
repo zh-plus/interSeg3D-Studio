@@ -10,7 +10,7 @@ export default defineConfig(({command, mode}) => {
     const env = loadEnv(mode, process.cwd(), '');
 
     // Get API URL from env or use default
-    const apiBaseUrl = env.VITE_API_BASE_URL || 'http://172.18.35.200:9001';
+    const apiBaseUrl = env.VITE_API_BASE_URL || 'http://172.18.35.200:9500';
 
     console.log(`Using API Base URL: ${apiBaseUrl}`);
 
