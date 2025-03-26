@@ -13,7 +13,8 @@ click-based segmentation algorithm and Gemini for 3D object detection.
 
 - **Interactive 3D Annotation**: Easily mark and annotate objects in 3D point clouds using positive and negative clicks
 - **AI-Powered Segmentation**: Click-based segmentation
-  with [advanced deep learning models](https://github.com/ywyue/AGILE3D)
+  with [AGILE3D model](https://github.com/ywyue/AGILE3D)
+  ![seg-demo.gif](assets/seg-demo.gif)
 - **Object Analysis**: Automatically identify and describe objects in your scene
 
 ![Analyze](assets/Object%20Analyze.png)
