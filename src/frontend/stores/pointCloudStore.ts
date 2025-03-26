@@ -1,11 +1,11 @@
-import { defineStore } from 'pinia';
-import { markRaw, ref, computed } from 'vue';
+import {defineStore} from 'pinia';
+import {computed, markRaw, ref} from 'vue';
 import * as THREE from 'three';
-import { PointCloudData, SegmentedPointCloud } from '@/types/PointCloud';
-import { pointCloudService } from '@/services/PointCloudService';
-import { GridSpatialIndex } from '@/utils/GridSpatialIndex';
-import { PerformanceLogger } from '@/utils/performance-logger';
-import { threeJsService } from '@/services/ThreeJsService';
+import {PointCloudData, SegmentedPointCloud} from '@/types/PointCloudTypes';
+import {pointCloudService} from '@/services/PointCloudService';
+import {GridSpatialIndex} from '@/utils/GridSpatialIndex';
+import {PerformanceLogger} from '@/utils/performance-logger';
+import {threeJsService} from '@/services/ThreeJsService';
 
 export const usePointCloudStore = defineStore('pointCloud', () => {
   // State
@@ -68,7 +68,7 @@ export const usePointCloudStore = defineStore('pointCloud', () => {
         currentColors: colors,
         geometry: markRaw(geometry),
         boundingBox: markRaw(new THREE.Box3().setFromBufferAttribute(
-          geometry.attributes.position as THREE.BufferAttribute
+            geometry.attributes.position as THREE.BufferAttribute
         )),
         pointSize: (pointCloud.material as THREE.PointsMaterial).size
       };
@@ -104,9 +104,9 @@ export const usePointCloudStore = defineStore('pointCloud', () => {
     }
 
     const result = pointCloudService.centerCameraOnPointCloud(
-      pointCloudData.value.geometry,
-      context.camera,
-      context.controls
+        pointCloudData.value.geometry,
+        context.camera,
+        context.controls
     );
 
     // Add axis helper
@@ -119,8 +119,8 @@ export const usePointCloudStore = defineStore('pointCloud', () => {
     if (!pointCloudData.value.geometry || !segmentation) return false;
 
     const result = pointCloudService.applySegmentation(
-      pointCloudData.value,
-      segmentation
+        pointCloudData.value,
+        segmentation
     );
 
     if (result) {

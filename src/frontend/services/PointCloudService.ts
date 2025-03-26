@@ -2,7 +2,7 @@ import {markRaw} from 'vue';
 import * as THREE from 'three';
 import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls';
 import {PLYLoader} from 'three/examples/jsm/loaders/PLYLoader';
-import {PointCloudData, PointCloudLoadOptions, SegmentedPointCloud} from '@/types/PointCloud';
+import {PointCloudData, PointCloudLoadOptions, SegmentedPointCloud} from '@/types/PointCloudTypes';
 import {PerformanceLogger} from '@/utils/performance-logger';
 import {GridSpatialIndex} from '@/utils/GridSpatialIndex';
 import {getColorFromIndex} from '@/utils/color-utils';

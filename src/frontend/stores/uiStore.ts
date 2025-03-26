@@ -1,7 +1,7 @@
-import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
-import { ClickMode, InteractionMode } from '@/types/Selection';
-import { threeJsService } from '@/services/ThreeJsService';
+import {defineStore} from 'pinia';
+import {computed, ref} from 'vue';
+import {ClickMode, InteractionMode} from '@/types/SelectionTypes';
+import {threeJsService} from '@/services/ThreeJsService';
 
 export interface ObjectData {
   id: number;
@@ -29,8 +29,8 @@ export const useUiStore = defineStore('ui', () => {
   // Computed
   const currentObjectIdx = computed<number | null>(() => {
     return selectedObjectIndex.value !== null
-      ? selectedObjectIndex.value + 1
-      : null;
+        ? selectedObjectIndex.value + 1
+        : null;
   });
 
   const isNavigateMode = computed<boolean>(() => interactionMode.value === 'navigate');

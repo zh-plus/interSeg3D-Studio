@@ -8,7 +8,7 @@
 
 <script lang="ts" setup>
 import {computed} from 'vue';
-import {InteractionMode} from '@/types/Selection';
+import {InteractionMode} from '@/types/SelectionTypes';
 
 // Define props with defineProps
 const props = defineProps({

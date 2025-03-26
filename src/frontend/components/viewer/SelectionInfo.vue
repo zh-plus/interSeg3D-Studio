@@ -36,7 +36,7 @@
 
 <script lang="ts" setup>
 import {computed} from 'vue';
-import {ClickPoint} from '@/types/Selection';
+import {ClickPoint} from '@/types/SelectionTypes';
 
 // Define props with defineProps
 const props = defineProps({

@@ -33,9 +33,9 @@
 </template>
 
 <script lang="ts" setup>
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { PerformanceLogger } from '@/utils/performance-logger';
-import { threeJsService } from '@/services/ThreeJsService';
+import {onBeforeUnmount, onMounted, ref, watch} from 'vue';
+import {PerformanceLogger} from '@/utils/performance-logger';
+import {threeJsService} from '@/services/ThreeJsService';
 
 // Components
 import LoadingOverlay from './LoadingOverlay.vue';
@@ -43,11 +43,11 @@ import ModeIndicator from './ModeIndicator.vue';
 import SelectionInfo from './SelectionInfo.vue';
 
 // Composables
-import { useThreeJsRenderer } from '@/composables/useThreeJsRenderer';
-import { useRaycasting } from '@/composables/useRaycasting';
+import {useThreeJsRenderer} from '@/composables/useThreeJsRenderer';
+import {useRaycasting} from '@/composables/useRaycasting';
 
 // Import Pinia stores
-import { usePointCloudStore, useAnnotationStore, useUiStore } from '@/stores';
+import {useAnnotationStore, usePointCloudStore, useUiStore} from '@/stores';
 
 // Define emits
 const emit = defineEmits([
@@ -98,7 +98,7 @@ watch(() => uiStore.interactionMode, (newMode) => {
   uiStore.updateControlsState(newMode);
   // Update cursor immediately
   updateCursorStyle();
-}, { immediate: true });
+}, {immediate: true});
 
 // Watch for cursor style changes
 watch(() => uiStore.cursorStyle, () => {
@@ -111,7 +111,7 @@ const undoRedoNotificationText = ref('');
 const undoRedoNotificationTimer = ref<number | null>(null);
 
 // Initialize Three.js
-const { threeContext, refreshViewport } = useThreeJsRenderer(container);
+const {threeContext, refreshViewport} = useThreeJsRenderer(container);
 
 // Raycasting for point selection
 const {

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls';
-import {ThreeJsContext, ThreeJsInitOptions, ViewportOptions} from '@/types/ThreeJs';
+import {ThreeJsContext, ThreeJsInitOptions, ViewportOptions} from '@/types/ThreeJsTypes';
 
 /**
  * Service to manage Three.js setup and rendering

@@ -1,10 +1,10 @@
-import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
-import { apiService } from '@/services/ApiService';
-import { InferenceRequest, MaskObjectDetectionResult } from '@/services/ApiServiceTypes';
-import { usePointCloudStore } from './pointCloudStore';
-import { useAnnotationStore } from './annotationStore';
-import { useUiStore } from './uiStore';
+import {defineStore} from 'pinia';
+import {computed, ref} from 'vue';
+import {apiService} from '@/services/ApiService';
+import {InferenceRequest, MaskObjectDetectionResult} from '@/types/ApiServiceTypes';
+import {usePointCloudStore} from './pointCloudStore';
+import {useAnnotationStore} from './annotationStore';
+import {useUiStore} from './uiStore';
 
 export const useApiStore = defineStore('api', () => {
   // References to other stores
@@ -156,7 +156,7 @@ export const useApiStore = defineStore('api', () => {
 
     try {
       const response = await apiService.runMaskObjectDetection(
-        pointCloudStore.segmentedPointCloud.segmentation
+          pointCloudStore.segmentedPointCloud.segmentation
       );
 
       if (response.data?.result && response.data.result.length > 0) {

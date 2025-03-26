@@ -1,9 +1,9 @@
-import { ref, Ref, computed } from 'vue';
+import {computed, Ref, ref} from 'vue';
 import * as THREE from 'three';
-import { ClickResult, RaycastResult } from '@/types/Selection';
-import { threeJsService } from '@/services/ThreeJsService';
-import { PerformanceLogger } from '@/utils/performance-logger';
-import { usePointCloudStore } from '@/stores';
+import {ClickResult, RaycastResult} from '@/types/SelectionTypes';
+import {threeJsService} from '@/services/ThreeJsService';
+import {PerformanceLogger} from '@/utils/performance-logger';
+import {usePointCloudStore} from '@/stores';
 
 interface UseRaycastingOptions {
     // Reference to the container element

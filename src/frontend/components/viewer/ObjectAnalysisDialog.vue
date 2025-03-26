@@ -146,10 +146,10 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, PropType, ref, watch } from 'vue';
-import { getCssColorFromIndex } from '@/utils/color-utils';
-import { useDisplay } from 'vuetify';
-import { useApiStore, useUiStore } from '@/stores';
+import {computed, PropType, ref, watch} from 'vue';
+import {getCssColorFromIndex} from '@/utils/color-utils';
+import {useDisplay} from 'vuetify';
+import {useApiStore, useUiStore} from '@/stores';
 
 export interface AnalysisResult {
   selected_views: number[];

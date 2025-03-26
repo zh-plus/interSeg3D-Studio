@@ -1,12 +1,12 @@
-import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import {defineStore} from 'pinia';
+import {computed, ref} from 'vue';
 import * as THREE from 'three';
-import { ClickPoint } from '@/types/Selection';
-import { AnnotationMarker, ClickAction, MarkerOptions } from '@/types/Annotation';
-import { threeJsService } from '@/services/ThreeJsService';
-import { getSelectionColor } from '@/utils/color-utils';
-import { usePointCloudStore } from './pointCloudStore';
-import { useUiStore } from './uiStore';
+import {ClickPoint} from '@/types/SelectionTypes';
+import {AnnotationMarker, ClickAction, MarkerOptions} from '@/types/AnnotationTypes';
+import {threeJsService} from '@/services/ThreeJsService';
+import {getSelectionColor} from '@/utils/color-utils';
+import {usePointCloudStore} from './pointCloudStore';
+import {useUiStore} from './uiStore';
 
 // Interface for history actions
 interface SelectionHistoryAction {
@@ -73,11 +73,11 @@ export const useAnnotationStore = defineStore('annotation', () => {
 
   // Actions
   const addClickPoint = (
-    position: number[],
-    objectIdx: number,
-    index?: number,
-    markerId?: string,
-    fromUndo: boolean = false
+      position: number[],
+      objectIdx: number,
+      index?: number,
+      markerId?: string,
+      fromUndo: boolean = false
   ): ClickPoint => {
     const clickPoint: ClickPoint = {
       position,
@@ -105,19 +105,19 @@ export const useAnnotationStore = defineStore('annotation', () => {
   };
 
   const applySelection = (
-    position: number[],
-    objectIdx: number,
-    fromUndo: boolean = false
+      position: number[],
+      objectIdx: number,
+      fromUndo: boolean = false
   ): { count: number, indices: number[] } => {
     if (!pointCloudStore.pointCloudData.currentColors ||
         !pointCloudStore.pointCloudData.geometry ||
         !pointCloudStore.spatialIndex) {
-      return { count: 0, indices: [] };
+      return {count: 0, indices: []};
     }
 
     // Skip coloring points if in background mode
     if (objectIdx === 0) {
-      return { count: 0, indices: [] };
+      return {count: 0, indices: []};
     }
 
     // Get selection color
@@ -125,8 +125,8 @@ export const useAnnotationStore = defineStore('annotation', () => {
 
     // Use spatial index for better performance
     const pointIndices = pointCloudStore.spatialIndex.findPointsInCube(
-      position,
-      uiStore.cubeSize
+        position,
+        uiStore.cubeSize
     );
 
     const currentColors = pointCloudStore.pointCloudData.currentColors;
@@ -167,7 +167,7 @@ export const useAnnotationStore = defineStore('annotation', () => {
       }
     }
 
-    return { count: pointIndices.length, indices: pointIndices };
+    return {count: pointIndices.length, indices: pointIndices};
   };
 
   const restorePointColors = (indices: number[], colors: Float32Array): void => {
@@ -198,17 +198,17 @@ export const useAnnotationStore = defineStore('annotation', () => {
   const createMarker = (markerOptions: MarkerOptions): AnnotationMarker | null => {
     // Convert position to Vector3 if it's an array
     const position = markerOptions.position instanceof THREE.Vector3
-      ? markerOptions.position
-      : new THREE.Vector3(
-          markerOptions.position[0],
-          markerOptions.position[1],
-          markerOptions.position[2]
+        ? markerOptions.position
+        : new THREE.Vector3(
+            markerOptions.position[0],
+            markerOptions.position[1],
+            markerOptions.position[2]
         );
 
     // Determine color based on object index or use provided color
     const color = markerOptions.color || (markerOptions.objectIdx === 0
-      ? new THREE.Color(0.1, 0.1, 0.1) // Dark gray for background
-      : getSelectionColor('object', markerOptions.objectIdx));
+        ? new THREE.Color(0.1, 0.1, 0.1) // Dark gray for background
+        : getSelectionColor('object', markerOptions.objectIdx));
 
     // Use provided radius or calculate from current cube size
     const radius = markerOptions.radius || Math.max(0.03, uiStore.cubeSize / 2);
@@ -225,7 +225,7 @@ export const useAnnotationStore = defineStore('annotation', () => {
     }
 
     // Store the marker's object id so we can use it for events
-    mesh.userData = { markerId: id };
+    mesh.userData = {markerId: id};
 
     // Create and store the marker
     const marker: AnnotationMarker = {
@@ -248,8 +248,8 @@ export const useAnnotationStore = defineStore('annotation', () => {
 
   const createCurrentSelectionMarker = (position: number[]): AnnotationMarker | null => {
     const objectIdx = uiStore.clickMode === 'background'
-      ? 0
-      : uiStore.currentObjectIdx || 0;
+        ? 0
+        : uiStore.currentObjectIdx || 0;
 
     // Record this click action
     const clickAction: ClickAction = {
@@ -286,9 +286,9 @@ export const useAnnotationStore = defineStore('annotation', () => {
   };
 
   const createMarkerForClick = (
-    position: number[],
-    objectIdx: number,
-    timeIdx: number
+      position: number[],
+      objectIdx: number,
+      timeIdx: number
   ): string | undefined => {
     // Create marker options
     const markerOptions: MarkerOptions = {
@@ -382,8 +382,8 @@ export const useAnnotationStore = defineStore('annotation', () => {
 
       // Remove the click point
       const index = clickedPoints.value.findIndex(p =>
-        p.timeIdx === lastAction.clickPoint.timeIdx &&
-        p.objectIdx === lastAction.clickPoint.objectIdx
+          p.timeIdx === lastAction.clickPoint.timeIdx &&
+          p.objectIdx === lastAction.clickPoint.objectIdx
       );
 
       if (index !== -1) {
@@ -421,28 +421,28 @@ export const useAnnotationStore = defineStore('annotation', () => {
 
       // Add the click point back
       const clickPoint = addClickPoint(
-        action.clickPoint.position,
-        action.clickPoint.objectIdx,
-        action.clickPoint.index,
-        action.markerId,
-        true // fromUndo = true
+          action.clickPoint.position,
+          action.clickPoint.objectIdx,
+          action.clickPoint.index,
+          action.markerId,
+          true // fromUndo = true
       );
 
       // Apply selection coloring if object mode
       if (action.clickPoint.objectIdx !== 0) {
         applySelection(
-          action.clickPoint.position,
-          action.clickPoint.objectIdx,
-          true // fromUndo = true
+            action.clickPoint.position,
+            action.clickPoint.objectIdx,
+            true // fromUndo = true
         );
       }
 
       // Recreate marker
       let newMarkerId: string | undefined;
       newMarkerId = createMarkerForClick(
-        action.clickPoint.position,
-        action.clickPoint.objectIdx,
-        action.clickPoint.timeIdx || 0
+          action.clickPoint.position,
+          action.clickPoint.objectIdx,
+          action.clickPoint.timeIdx || 0
       );
 
       // Update the marker ID in the action

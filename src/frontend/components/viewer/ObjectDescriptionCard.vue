@@ -31,8 +31,8 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, PropType } from 'vue';
-import { useUiStore, ObjectData } from '@/stores';
+import {computed, PropType} from 'vue';
+import {ObjectData, useUiStore} from '@/stores';
 
 // Store instance
 const uiStore = useUiStore();

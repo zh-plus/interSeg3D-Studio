@@ -1,6 +1,6 @@
 import axios, {AxiosError, AxiosRequestConfig, AxiosResponse} from 'axios';
-import {SegmentedPointCloud} from '@/types/PointCloud';
-import {ApiClickData} from '@/types/Annotation';
+import {SegmentedPointCloud} from '@/types/PointCloudTypes';
+import {ApiClickData} from '@/types/AnnotationTypes';
 
 // Configuration from environment variables
 const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'http://172.18.35.200:9500';

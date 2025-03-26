@@ -1,5 +1,5 @@
 import {markRaw, onBeforeUnmount, onMounted, Ref, shallowRef} from 'vue';
-import {ThreeJsContext} from '@/types/ThreeJs';
+import {ThreeJsContext} from '@/types/ThreeJsTypes';
 import {threeJsService} from '@/services/ThreeJsService';
 import {debounce} from '@/utils/debounce';
 
