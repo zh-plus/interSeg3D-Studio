@@ -99,6 +99,16 @@ An web-based interactive 3D point cloud segmentation and annotation tool with AI
 - **Scroll wheel**: Zoom in/out
 - **Left-click** (Annotation Mode): Mark a point
 
+## How it works
+
+After segmenting the project interactively using clicks, all the objects are scanned from multiple angles and analyzed
+using the AI object detection model. The model uses the LLM API to identify the objects and provide a description of the
+object. The description includes the object's name, color, and size.
+
+For example, the object are indicated using convex hulls and the cameras are positioned at green spheres.
+
+![Camera-Position](assets/Camera-Position.png)
+
 ## Development
 
 ### Project Structure
