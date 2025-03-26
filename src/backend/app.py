@@ -1,7 +1,6 @@
 import os
 import shutil
 import tempfile
-from copy import deepcopy
 from typing import Dict, List, Any
 
 import numpy as np
@@ -212,6 +211,12 @@ async def run_inference(request: InferenceRequest):
         )
 
 
+def mask_obj_detection_worker(args):
+    obj_id, point_cloud_path, mask_np = args
+    # Use mask_np.copy() if necessary to avoid sharing issues.
+    return mask_obj_detection(point_cloud_path, mask_np.copy(), obj_id)
+
+
 @app.post("/api/mask_obj_detection")
 async def run_mask_obj_detection(request: MaskObjDetectionRequest):
     """
@@ -240,12 +245,12 @@ async def run_mask_obj_detection(request: MaskObjDetectionRequest):
                 content={"message": "Invalid mask format. Please provide a list of integers."}
             )
 
-        # Convert to numpy array
+        # Convert to numpy array.
         mask_np = np.array(mask, dtype=int)
 
-        # Find all unique object IDs (excluding background/0)
+        # Find unique object IDs, excluding background (0).
         unique_obj_ids = np.unique(mask_np)
-        unique_obj_ids = unique_obj_ids[unique_obj_ids > 0]  # Exclude background
+        unique_obj_ids = unique_obj_ids[unique_obj_ids > 0]
 
         if len(unique_obj_ids) == 0:
             return JSONResponse(
@@ -253,10 +258,16 @@ async def run_mask_obj_detection(request: MaskObjDetectionRequest):
                 content={"message": "No objects found in the mask (all values are 0/background)."}
             )
 
-        result = []
-        for obj_id in unique_obj_ids:
-            detection_result = mask_obj_detection(current_point_cloud_path, deepcopy(mask_np), obj_id)
-            result.append(detection_result)
+        # Prepare arguments for each object.
+        work_args = [
+            (obj_id, current_point_cloud_path, mask_np)
+            for obj_id in unique_obj_ids
+        ]
+
+        # Process each object in parallel.
+        import multiprocessing
+        with multiprocessing.Pool() as pool:
+            result = pool.map(mask_obj_detection_worker, work_args)
 
         return JSONResponse(content={
             "message": "Mask object detection completed successfully",

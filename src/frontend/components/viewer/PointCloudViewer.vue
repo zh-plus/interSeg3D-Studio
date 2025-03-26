@@ -34,6 +34,7 @@
 
 <script lang="ts" setup>
 import {onBeforeUnmount, onMounted, ref, watch} from 'vue';
+import * as THREE from 'three';
 import {PerformanceLogger} from '@/utils/performance-logger';
 import {threeJsService} from '@/services/ThreeJsService';
 

@@ -122,6 +122,8 @@ def mask_obj_detection(point_cloud_path: str | Path, mask: np.ndarray | str, obj
         ),
     )
 
+    print('Get response from LLM')
+
     # Extract response text and compute the cost using the provided helper function.
     response_text = response.text
     cost = get_cost(response)
