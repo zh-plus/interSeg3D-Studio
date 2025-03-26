@@ -2,26 +2,26 @@
   <div ref="container" class="point-cloud-viewer">
     <!-- Loading overlay -->
     <LoadingOverlay
-        :message="loadingMessage"
-        :progress="loadingProgress ?? undefined"
-        :show="isLoading"
+        :message="pointCloudStore.isLoading ? 'Loading point cloud...' : 'Processing...'"
+        :progress="pointCloudStore.loadingProgress ?? undefined"
+        :show="pointCloudStore.isLoading || annotationStore.isProcessingSelection"
     />
 
     <!-- Mode indicator -->
     <ModeIndicator
-        :click-mode="internalClickMode"
-        :mode="internalInteractionMode"
+        :click-mode="uiStore.clickMode"
+        :mode="uiStore.interactionMode"
     />
 
     <!-- Selection info -->
     <SelectionInfo
-        :can-redo="canRedo()"
-        :can-undo="canUndo()"
-        :click-count="getClickCount()"
-        :click-points="clickedPoints"
-        :coordinate="selectedCoordinate"
-        :is-processing-selection="isProcessingSelection"
-        :point-count="pointCloudData.pointCount"
+        :can-redo="annotationStore.canRedo"
+        :can-undo="annotationStore.canUndo"
+        :click-count="annotationStore.clickCount"
+        :click-points="annotationStore.clickedPoints"
+        :coordinate="annotationStore.selectedCoordinate"
+        :is-processing-selection="annotationStore.isProcessingSelection"
+        :point-count="pointCloudStore.pointCloudData.pointCount"
         :show-debug="showDebug"
     />
 
@@ -33,14 +33,9 @@
 </template>
 
 <script lang="ts" setup>
-import {onBeforeUnmount, onMounted, PropType, ref, Ref, watch} from 'vue';
-import * as THREE from 'three';
-import {SegmentedPointCloud} from '@/types/PointCloud';
-import {ClickMode, InteractionMode} from '@/types/Selection';
-import {PerformanceLogger} from '@/utils/performance-logger';
-import {pointCloudService} from '@/services/PointCloudService';
-import {threeJsService} from '@/services/ThreeJsService';
-import {GridSpatialIndex} from '@/utils/GridSpatialIndex';
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { PerformanceLogger } from '@/utils/performance-logger';
+import { threeJsService } from '@/services/ThreeJsService';
 
 // Components
 import LoadingOverlay from './LoadingOverlay.vue';
@@ -48,44 +43,11 @@ import ModeIndicator from './ModeIndicator.vue';
 import SelectionInfo from './SelectionInfo.vue';
 
 // Composables
-import {useThreeJsRenderer} from '@/composables/useThreeJsRenderer';
-import {usePointCloudLoader} from '@/composables/usePointCloudLoader';
-import {useInteractionMode} from '@/composables/useInteractionMode';
-import {useRaycasting} from '@/composables/useRaycasting';
-import {useSelectionTool} from '@/composables/useSelectionTool';
-import {useAnnotationMarkers} from '@/composables/useAnnotationMarkers';
+import { useThreeJsRenderer } from '@/composables/useThreeJsRenderer';
+import { useRaycasting } from '@/composables/useRaycasting';
 
-// Props definition
-const props = defineProps({
-  plyFile: {
-    type: Object as PropType<File | null>,
-    default: null
-  },
-  segmentedPointCloud: {
-    type: Object as PropType<SegmentedPointCloud | null>,
-    default: null
-  },
-  clickMode: {
-    type: String as PropType<ClickMode>,
-    default: 'object'
-  },
-  currentObjectIdx: {
-    type: Number,
-    default: null
-  },
-  cubeSize: {
-    type: Number,
-    default: 0.02
-  },
-  interactionMode: {
-    type: String as PropType<InteractionMode>,
-    default: 'navigate'
-  },
-  objects: {
-    type: Array as PropType<{ id: number; name: string }[]>,
-    default: () => []
-  }
-});
+// Import Pinia stores
+import { usePointCloudStore, useAnnotationStore, useUiStore } from '@/stores';
 
 // Define emits
 const emit = defineEmits([
@@ -93,10 +55,13 @@ const emit = defineEmits([
   'point-cloud-loaded',
   'error',
   'create-object',
-  'select-object',
-  'undo',
-  'redo'
+  'select-object'
 ]);
+
+// Store instances
+const pointCloudStore = usePointCloudStore();
+const annotationStore = useAnnotationStore();
+const uiStore = useUiStore();
 
 // DOM Container reference
 const container = ref<HTMLElement | null>(null);
@@ -104,125 +69,81 @@ const container = ref<HTMLElement | null>(null);
 // Debug settings
 const showDebug = ref(import.meta.env.DEV || false);
 
-// Loading state
-const isLoading = ref(false);
-const loadingMessage = ref('');
-const loadingProgress = ref<number | null>(null);
-
-// Selection state
-const selectedCoordinate = ref<number[] | null>(null);
-const isProcessingSelection = ref(false);
-
 // Mouse interaction state
 const isSelecting = ref(false);
 const isDragging = ref(false);
 const startMousePosition = ref<{ x: number, y: number } | null>(null);
+
+// Function to update cursor style - define before watch statements
+const updateCursorStyle = () => {
+  if (!container.value) return;
+
+  console.log(`Setting cursor style to: ${uiStore.cursorStyle}`);
+  container.value.style.cursor = uiStore.cursorStyle;
+
+  // Also add active class for additional styling if needed
+  if (uiStore.interactionMode === 'navigate') {
+    container.value.classList.add('navigate-mode');
+    container.value.classList.remove('annotate-mode');
+  } else {
+    container.value.classList.add('annotate-mode');
+    container.value.classList.remove('navigate-mode');
+  }
+};
+
+// Watch for interaction mode changes to update the controls
+watch(() => uiStore.interactionMode, (newMode) => {
+  console.log(`PointCloudViewer detected interaction mode change to: ${newMode}`);
+  // Ensure ThreeJS controls are updated
+  uiStore.updateControlsState(newMode);
+  // Update cursor immediately
+  updateCursorStyle();
+}, { immediate: true });
+
+// Watch for cursor style changes
+watch(() => uiStore.cursorStyle, () => {
+  updateCursorStyle();
+});
 
 // Undo/Redo notification
 const showUndoRedoNotification = ref(false);
 const undoRedoNotificationText = ref('');
 const undoRedoNotificationTimer = ref<number | null>(null);
 
-// Internal props tracking for reactivity
-const internalInteractionMode = ref<InteractionMode>(props.interactionMode);
-const internalClickMode = ref<ClickMode>(props.clickMode);
-const internalObjectIdx = ref<number | null>(props.currentObjectIdx);
-const internalCubeSize = ref(props.cubeSize);
-
 // Initialize Three.js
-const {threeContext, refreshViewport} = useThreeJsRenderer(container);
-
-// Point cloud loading and management
-const {
-  pointCloudData,
-  spatialIndex: rawSpatialIndex,
-  loadPointCloud,
-  resetColors,
-  centerCamera
-} = usePointCloudLoader();
-
-// Fix type compatibility issue with a proper type assertion
-const spatialIndex = rawSpatialIndex as Ref<GridSpatialIndex | null>;
-
-// Set up interaction mode
-const {
-  interactionMode: modeState,
-  clickMode: clickModeState,
-  updateControlsState,
-  selectObject,
-  currentObjectIdx: currentObjIdx
-} = useInteractionMode({
-  initialMode: props.interactionMode,
-  container
-});
+const { threeContext, refreshViewport } = useThreeJsRenderer(container);
 
 // Raycasting for point selection
 const {
-  isProcessingSelection: raycastProcessing,
   updateMousePosition,
   tryProgressiveRaycast,
-  findNearestPoint,
-  performRaycast
+  findNearestPoint
 } = useRaycasting({
-  spatialIndex,
-  pointCloudData,
-  cubeSize: internalCubeSize,
+  spatialIndex: pointCloudStore.spatialIndex,
+  pointCloudData: pointCloudStore.pointCloudData,
+  cubeSize: uiStore.cubeSize,
   container
 });
 
-// Selection tools
-const {
-  clickedPoints,
-  addClickPoint,
-  applySelection,
-  getClickCount,
-  getClickDataForApi,
-  undo: undoSelection,
-  redo: redoSelection,
-  canUndo,
-  canRedo
-} = useSelectionTool({
-  spatialIndex,
-  pointCloudData,
-  cubeSize: internalCubeSize,
-  clickMode: internalClickMode,
-  currentObjectIdx: currentObjIdx
+// Watch for file changes
+watch(() => pointCloudStore.pointCloudData.file, async (newFile) => {
+  if (!newFile || pointCloudStore.isLoading) return;
+
+  // Clear any previous markers
+  annotationStore.clearMarkers();
+
+  // Emit loaded event
+  emit('point-cloud-loaded', {
+    pointCount: pointCloudStore.pointCloudData.pointCount
+  });
 });
 
-// Annotation markers
-const {
-  createCurrentSelectionMarker,
-  clearMarkers,
-  recreateMarkers,
-  removeMarker,
-  createMarkerForClick
-} = useAnnotationMarkers({
-  clickedPoints,
-  clickMode: internalClickMode,
-  currentObjectIdx: currentObjIdx,
-  markerSize: internalCubeSize
-});
+// Watch for segmentation data changes
+watch(() => pointCloudStore.segmentedPointCloud, async (newData) => {
+  if (!newData || !pointCloudStore.pointCloudData.pointCount) return;
 
-// Sync internal state with props
-watch(() => props.interactionMode, (newMode) => {
-  internalInteractionMode.value = newMode;
-  modeState.value = newMode;
-});
-
-watch(() => props.clickMode, (newMode) => {
-  internalClickMode.value = newMode;
-  clickModeState.value = newMode;
-});
-
-watch(() => props.currentObjectIdx, (newIdx) => {
-  internalObjectIdx.value = newIdx;
-  if (newIdx !== null) {
-    selectObject(newIdx - 1); // Convert to 0-based
-  }
-});
-
-watch(() => props.cubeSize, (newSize) => {
-  internalCubeSize.value = newSize;
+  // Recreate markers to keep them visible
+  annotationStore.recreateMarkers();
 });
 
 /**
@@ -247,93 +168,33 @@ const showNotification = (text: string): void => {
 };
 
 /**
- * Handle file changes from props
- */
-watch(() => props.plyFile, async (newFile) => {
-  if (!newFile || isLoading.value) return;
-
-  try {
-    isLoading.value = true;
-    loadingMessage.value = 'Loading point cloud...';
-
-    // Load the file
-    await loadPointCloud(newFile);
-
-    // Center camera on loaded point cloud
-    centerCamera();
-
-    // Clear any previous markers
-    clearMarkers();
-
-    // Emit loaded event
-    emit('point-cloud-loaded', {
-      pointCount: pointCloudData.value.pointCount
-    });
-  } catch (error) {
-    console.error('Error loading point cloud:', error);
-    emit('error', error instanceof Error ? error.message : 'Failed to load point cloud');
-  } finally {
-    isLoading.value = false;
-    loadingMessage.value = '';
-  }
-});
-
-/**
- * Handle segmentation data changes
- */
-watch(() => props.segmentedPointCloud, async (newData) => {
-  if (!newData || !pointCloudData.value.pointCount) return;
-
-  try {
-    isLoading.value = true;
-    loadingMessage.value = 'Applying segmentation...';
-
-    // Apply segmentation with the PointCloudService
-    const result = await pointCloudService.applySegmentation(
-        pointCloudData.value,
-        newData
-    );
-
-    if (!result) {
-      throw new Error('Failed to apply segmentation data');
-    }
-
-    // Recreate markers to keep them visible
-    recreateMarkers();
-
-    // Force a render update after segmentation
-    if (threeContext.value?.renderer && threeContext.value?.scene && threeContext.value?.camera) {
-      console.log('Explicitly rendering after segmentation update');
-      threeContext.value.renderer.render(threeContext.value.scene, threeContext.value.camera);
-    }
-  } catch (error) {
-    console.error('Error applying segmentation:', error);
-    emit('error', error instanceof Error ? error.message : 'Failed to apply segmentation');
-  } finally {
-    isLoading.value = false;
-    loadingMessage.value = '';
-  }
-});
-
-/**
  * Handle mouse down event
  */
 const onMouseDown = (event: MouseEvent): void => {
   startMousePosition.value = {x: event.clientX, y: event.clientY};
 
-  if (isLoading.value) return;
+  if (pointCloudStore.isLoading) return;
+
+  // Update cursor for dragging in navigate mode
+  if (uiStore.interactionMode === 'navigate' && event.button === 0 && container.value) {
+    container.value.style.cursor = 'grabbing';
+  }
 
   if (event.button === 2) {
     // Right-click: temporarily enable controls for panning
     event.preventDefault();
-    if (internalInteractionMode.value === 'annotate' && threeContext.value?.controls) {
+    if (uiStore.interactionMode === 'annotate' && threeContext.value?.controls) {
       threeContext.value.controls.enabled = true;
       threeContext.value.controls.enablePan = true;
+      // Set panning cursor
+      if (container.value) {
+        container.value.style.cursor = 'move';
+      }
     }
     return;
   }
 
-  if (event.button === 0 && internalInteractionMode.value === 'annotate') {
+  if (event.button === 0 && uiStore.interactionMode === 'annotate') {
     isSelecting.value = true;
     event.preventDefault();
   }
@@ -350,6 +211,11 @@ const onMouseMove = (event: MouseEvent): void => {
 
   if (deltaX > 3 || deltaY > 3) {
     isDragging.value = true;
+
+    // Update cursor for dragging in navigate mode
+    if (uiStore.interactionMode === 'navigate' && event.buttons === 1 && container.value) {
+      container.value.style.cursor = 'grabbing';
+    }
   }
 };
 
@@ -361,16 +227,19 @@ const onMouseUp = (event: MouseEvent): void => {
   isDragging.value = false;
   startMousePosition.value = null;
 
+  // Reset cursor style
+  updateCursorStyle();
+
   if (event.button === 2) {
     // Right-click: restore controls state
-    if (internalInteractionMode.value === 'annotate' && threeContext.value?.controls) {
+    if (uiStore.interactionMode === 'annotate' && threeContext.value?.controls) {
       threeContext.value.controls.enabled = false;
       threeContext.value.controls.enablePan = false;
     }
     return;
   }
 
-  if (internalInteractionMode.value === 'annotate' && isSelecting.value && !wasDragging) {
+  if (uiStore.interactionMode === 'annotate' && isSelecting.value && !wasDragging) {
     handleAnnotationClick(event);
   }
 
@@ -383,16 +252,15 @@ const onMouseUp = (event: MouseEvent): void => {
 const handleAnnotationClick = (event: MouseEvent): void => {
   PerformanceLogger.start('total_click_processing');
 
-  if (isLoading.value || !container.value) return;
+  if (pointCloudStore.isLoading || !container.value) return;
 
   // Check valid click mode - if object mode requires currentObjectIdx, background mode doesn't
-  if (internalClickMode.value === 'object' && internalObjectIdx.value === null) {
+  if (uiStore.clickMode === 'object' && uiStore.currentObjectIdx === null) {
     console.warn('No object selected for labeling');
     return;
   }
 
   // Ensure the Three.js viewport is correctly sized and synchronized with the container
-  // This is critical for accurate raycasting when moving between different displays
   if (threeContext.value && threeContext.value.renderer) {
     const canvasElement = threeContext.value.renderer.domElement;
     const canvasRect = canvasElement.getBoundingClientRect();
@@ -424,7 +292,7 @@ const handleAnnotationClick = (event: MouseEvent): void => {
   updateMousePosition(event.clientX, event.clientY, rect);
 
   // Perform raycasting
-  isProcessingSelection.value = true;
+  annotationStore.isProcessingSelection = true;
 
   // Try to raycast
   const raycastResult = tryProgressiveRaycast();
@@ -435,18 +303,18 @@ const handleAnnotationClick = (event: MouseEvent): void => {
 
     if (nearestPoint) {
       // Store the selected point
-      selectedCoordinate.value = nearestPoint.position;
+      annotationStore.selectedCoordinate = nearestPoint.position;
 
       // Create a marker at the point
-      const marker = createCurrentSelectionMarker(nearestPoint.position);
+      const marker = annotationStore.createCurrentSelectionMarker(nearestPoint.position);
 
       // Add the click point to our history
-      const objectIdx = internalClickMode.value === 'background' ? 0 : (internalObjectIdx.value || 0);
-      addClickPoint(nearestPoint.position, objectIdx, nearestPoint.index, marker?.id);  // Pass the marker ID
+      const objectIdx = uiStore.clickMode === 'background' ? 0 : (uiStore.currentObjectIdx || 0);
+      annotationStore.addClickPoint(nearestPoint.position, objectIdx, nearestPoint.index, marker?.id);  // Pass the marker ID
 
       // Apply selection coloring
-      if (internalClickMode.value === 'object') {
-        applySelection(nearestPoint.position);
+      if (uiStore.clickMode === 'object') {
+        annotationStore.applySelection(nearestPoint.position, objectIdx);
       }
 
       // Emit the click event
@@ -458,62 +326,21 @@ const handleAnnotationClick = (event: MouseEvent): void => {
     console.warn('No intersection found');
   }
 
-  isProcessingSelection.value = false;
+  annotationStore.isProcessingSelection = false;
   PerformanceLogger.end('total_click_processing');
-};
-
-/**
- * Handle keyboard events
- */
-const handleKeydown = (e: KeyboardEvent): void => {
-  // Prevent handling if any input elements are focused
-  if (e.target instanceof HTMLInputElement ||
-      e.target instanceof HTMLTextAreaElement ||
-      e.target instanceof HTMLSelectElement) {
-    return;
-  }
-
-  // 'A' key to toggle between annotation and navigation modes
-  if (e.key === 'a' || e.key === 'A') {
-    internalInteractionMode.value = internalInteractionMode.value === 'navigate' ? 'annotate' : 'navigate';
-    modeState.value = internalInteractionMode.value;
-    updateControlsState(internalInteractionMode.value);
-    console.log(`Switched to ${internalInteractionMode.value} mode`);
-  }
-
-  // Ctrl+Z for undo
-  if (e.ctrlKey && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
-    if (canUndo()) {
-      e.preventDefault();
-      e.stopPropagation(); // Stop event propagation
-      performUndo();
-    }
-  }
-
-  // Shift+Ctrl+Z for redo
-  if (e.ctrlKey && e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
-    if (canRedo()) {
-      e.preventDefault();
-      e.stopPropagation(); // Stop event propagation
-      performRedo();
-    }
-  }
 };
 
 /**
  * Perform undo operation
  */
 const performUndo = (): void => {
-  if (!canUndo()) return;
+  if (!annotationStore.canUndo) return;
 
-  const undoneAction = undoSelection(removeMarker);
+  const undoneAction = annotationStore.undo();
 
   if (undoneAction) {
     // Notify user
     showNotification(`Undid click ${undoneAction.clickPoint.objectIdx === 0 ? 'background' : 'object'}`);
-
-    // Emit undo event
-    emit('undo', undoneAction);
   }
 };
 
@@ -521,28 +348,29 @@ const performUndo = (): void => {
  * Perform redo operation
  */
 const performRedo = (): void => {
-  if (!canRedo()) return;
+  if (!annotationStore.canRedo) return;
 
-  const redoneAction = redoSelection(createMarkerForClick);
+  const redoneAction = annotationStore.redo();
 
   if (redoneAction) {
     // Notify user
     showNotification(`Redid click ${redoneAction.clickPoint.objectIdx === 0 ? 'background' : 'object'}`);
-
-    // Emit redo event
-    emit('redo', redoneAction);
   }
 };
 
-
+/**
+ * Refresh markers
+ */
 const refreshMarkers = () => {
-  if (clickedPoints.value.length > 0) {
+  if (annotationStore.clickCount > 0) {
     console.log('Refreshing markers');
-    // Use the existing recreateMarkers function from useAnnotationMarkers
-    recreateMarkers();
+    annotationStore.recreateMarkers();
   }
 };
 
+/**
+ * Force render update
+ */
 const forceRenderUpdate = () => {
   console.log('Force rendering update requested');
 
@@ -558,9 +386,9 @@ const forceRenderUpdate = () => {
     }
 
     // Access geometry directly from the service to avoid proxy issues
-    if (pointCloudData.value.geometry) {
+    if (pointCloudStore.pointCloudData.geometry) {
       // Mark color buffer as needing update
-      const colorAttrib = pointCloudData.value.geometry.attributes.color;
+      const colorAttrib = pointCloudStore.pointCloudData.geometry.attributes.color;
       if (colorAttrib) {
         colorAttrib.needsUpdate = true;
       }
@@ -579,7 +407,7 @@ const forceRenderUpdate = () => {
  * Handle wheel event for zooming in annotation mode
  */
 const onWheel = (event: WheelEvent): void => {
-  if (internalInteractionMode.value === 'annotate' && threeContext.value?.camera) {
+  if (uiStore.interactionMode === 'annotate' && threeContext.value?.camera) {
     event.preventDefault();
 
     const zoomSpeed = 0.1;
@@ -609,8 +437,38 @@ onMounted(() => {
   container.value.addEventListener('mouseup', onMouseUp);
   container.value.addEventListener('wheel', onWheel, {passive: false});
 
+  // Initialize cursor style based on current mode
+  updateCursorStyle();
+
   // Add keyboard event listener for undo/redo
-  window.addEventListener('keydown', handleKeydown);
+  window.addEventListener('keydown', (e: KeyboardEvent) => {
+    // Prevent handling if any input elements are focused
+    if (e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement) {
+      return;
+    }
+
+    // Ctrl+Z for undo
+    if (e.ctrlKey && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
+      if (annotationStore.canUndo) {
+        e.preventDefault();
+        e.stopPropagation(); // Stop event propagation
+        performUndo();
+      }
+    }
+
+    // Shift+Ctrl+Z for redo
+    if (e.ctrlKey && e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
+      if (annotationStore.canRedo) {
+        e.preventDefault();
+        e.stopPropagation(); // Stop event propagation
+        performRedo();
+      }
+    }
+  });
+
+  console.log('PointCloudViewer: Mounted with mode', uiStore.interactionMode);
 });
 
 // Clean up event handlers
@@ -632,16 +490,18 @@ onBeforeUnmount(() => {
   }
 });
 
+// Method to handle keyboard events
+function handleKeydown(e: KeyboardEvent): void {
+  // Implementation moved to the inline event listener above
+}
+
 defineExpose({
-  getClickDataForApi,
   performUndo,
   performRedo,
-  canUndo,
-  canRedo,
   refreshViewport,
   refreshMarkers,
-  recreateMarkers,
-  forceRenderUpdate
+  forceRenderUpdate,
+  getClickDataForApi: () => annotationStore.clickDataForApi
 });
 </script>
 

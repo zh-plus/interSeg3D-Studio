@@ -18,7 +18,7 @@
       <v-divider></v-divider>
 
       <v-card-text class="analysis-content">
-        <div v-if="loading" class="loading-container">
+        <div v-if="props.loading" class="loading-container">
           <v-progress-circular
               color="primary"
               indeterminate
@@ -28,7 +28,7 @@
           <p class="text-caption">This may take a minute as the system renders and processes multiple views.</p>
         </div>
 
-        <div v-else-if="analysisResults.length === 0" class="no-results">
+        <div v-else-if="props.results.length === 0" class="no-results">
           <v-icon color="grey lighten-1" x-large>mdi-alert-circle-outline</v-icon>
           <h3 class="mt-4">No analysis results available</h3>
           <p>Try running the analysis again with more defined object segments.</p>
@@ -40,7 +40,7 @@
             multiple
         >
           <v-expansion-panel
-              v-for="(result, index) in analysisResults"
+              v-for="(result, index) in props.results"
               :key="index"
           >
             <v-expansion-panel-header>
@@ -132,7 +132,7 @@
         </v-btn>
 
         <v-btn
-            :disabled="analysisResults.length === 0 || appliedResults.length === analysisResults.length"
+            :disabled="props.results.length === 0 || appliedResults.length === props.results.length"
             color="primary"
             dense
             @click="applyAllResults"
@@ -145,10 +145,11 @@
   </v-dialog>
 </template>
 
-<script lang="ts">
-import {computed, defineComponent, PropType, ref, watch} from 'vue';
-import {getCssColorFromIndex} from '@/utils/color-utils';
-import {useDisplay} from 'vuetify';
+<script lang="ts" setup>
+import { computed, PropType, ref, watch } from 'vue';
+import { getCssColorFromIndex } from '@/utils/color-utils';
+import { useDisplay } from 'vuetify';
+import { useApiStore, useUiStore } from '@/stores';
 
 export interface AnalysisResult {
   selected_views: number[];
@@ -158,84 +159,97 @@ export interface AnalysisResult {
   obj_id?: number; // Optional object ID that may be provided by the backend or computed
 }
 
-export default defineComponent({
-  name: 'ObjectAnalysisDialog',
+// Store instances
+const apiStore = useApiStore();
+const uiStore = useUiStore();
 
-  props: {
-    modelValue: {
-      type: Boolean,
-      default: false
-    },
-    results: {
-      type: Array as PropType<AnalysisResult[]>,
-      default: () => []
-    },
-    loading: {
-      type: Boolean,
-      default: false
-    }
+// Props definition
+const props = defineProps({
+  modelValue: {
+    type: Boolean,
+    default: false
   },
-
-  emits: ['update:modelValue', 'apply-label', 'apply-all', 'view-object'],
-
-  setup(props, {emit}) {
-    const display = useDisplay();
-
-    const dialog = computed({
-      get: () => props.modelValue,
-      set: (value) => emit('update:modelValue', value)
-    });
-
-    const openPanels = ref<number[]>([0]); // Open first panel by default
-    const appliedResults = ref<number[]>([]);
-
-    // Reset applied results when dialog opens
-    watch(() => props.modelValue, (newVal) => {
-      if (newVal) {
-        appliedResults.value = [];
-        // Open the first panel when dialog opens
-        openPanels.value = props.results.length > 0 ? [0] : [];
-      }
-    });
-
-    const analysisResults = computed(() => props.results);
-
-    function closeDialog() {
-      dialog.value = false;
-    }
-
-    function getColorForIndex(index: number) {
-      return getCssColorFromIndex(index, 100, 50);
-    }
-
-    function applyLabel(label: string, resultIndex: number) {
-      emit('apply-label', {label, index: resultIndex});
-      appliedResults.value.push(resultIndex);
-    }
-
-    function applyAllResults() {
-      emit('apply-all', props.results);
-      appliedResults.value = props.results.map((_, i) => i);
-    }
-
-    function viewObjectDetails(index: number) {
-      emit('view-object', index);
-    }
-
-    return {
-      dialog,
-      display,
-      openPanels,
-      appliedResults,
-      analysisResults,
-      closeDialog,
-      getColorForIndex,
-      applyLabel,
-      applyAllResults,
-      viewObjectDetails
-    };
+  results: {
+    type: Array as PropType<AnalysisResult[]>,
+    default: () => []
+  },
+  loading: {
+    type: Boolean,
+    default: false
   }
 });
+
+// Emit events
+const emit = defineEmits(['update:modelValue', 'apply-label', 'apply-all', 'view-object']);
+
+// Get display breakpoints from Vuetify
+const display = useDisplay();
+
+// Local state
+const openPanels = ref<number[]>([0]); // Open first panel by default
+const appliedResults = ref<number[]>([]);
+
+// Computed for dialog visibility
+const dialog = computed({
+  get: () => props.modelValue,
+  set: (value) => emit('update:modelValue', value)
+});
+
+// Reset applied results when dialog opens
+watch(() => props.modelValue, (newVal) => {
+  if (newVal) {
+    appliedResults.value = [];
+    // Open the first panel when dialog opens
+    openPanels.value = props.results.length > 0 ? [0] : [];
+  }
+});
+
+// Methods
+function closeDialog() {
+  dialog.value = false;
+}
+
+function getColorForIndex(index: number) {
+  return getCssColorFromIndex(index, 100, 50);
+}
+
+function applyLabel(label: string, resultIndex: number) {
+  emit('apply-label', {label, index: resultIndex});
+  apiStore.applyAnalysisLabel({label, index: resultIndex});
+  appliedResults.value.push(resultIndex);
+}
+
+function applyAllResults() {
+  emit('apply-all', props.results);
+  apiStore.applyAllAnalysisResults();
+  appliedResults.value = props.results.map((_, i) => i);
+}
+
+function viewObjectDetails(index: number) {
+  emit('view-object', index);
+
+  // Use the store to show object details
+  const result = props.results[index];
+
+  // Extract object ID from the label
+  const objIdMatch = /(\d+)/.exec(result.label);
+  const objId = objIdMatch ? parseInt(objIdMatch[0], 10) : null;
+
+  if (objId !== null) {
+    // Find the object in our list
+    const objIndex = uiStore.objects.findIndex(obj => obj.id === objId);
+
+    if (objIndex !== -1) {
+      // Show the object description dialog
+      uiStore.selectedObjectForDescription = {
+        id: objId,
+        name: result.label,
+        description: result.description
+      };
+      uiStore.showDescriptionDialog = true;
+    }
+  }
+}
 </script>
 
 <style scoped>

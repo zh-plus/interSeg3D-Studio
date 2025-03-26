@@ -18,7 +18,13 @@
     "paths": {
       "@/*": [
         "./*"
-      ]
+      ],
+//      "@stores/*": [
+//        "./stores/*"
+//      ],
+//      "@services/*": [
+//        "./services/*"
+//      ]
     }
   },
   "include": [

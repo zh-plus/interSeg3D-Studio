@@ -11,12 +11,16 @@ export function useThreeJsRenderer(container: Ref<HTMLElement | null>) {
     const initThreeJs = (): void => {
         if (!container.value) return;
 
+        console.log('Initializing ThreeJS renderer');
+
         // Initialize the Three.js scene and mark it as raw to prevent proxying
         threeContext.value = markRaw(threeJsService.init({
             container: container.value,
             backgroundColor: 0x111111,
             antialias: true
         }));
+
+        console.log('ThreeJS context created:', threeContext.value);
 
         // Add lighting
         threeJsService.addSceneLighting();

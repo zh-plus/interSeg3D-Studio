@@ -36,5 +36,5 @@ const pinia = createPinia();
 // Create and mount the app
 createApp(App)
     .use(vuetify)
-    .use(pinia)
+    .use(pinia)  // Use Pinia before mounting
     .mount('#app');
