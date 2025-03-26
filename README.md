@@ -1,6 +1,11 @@
 # interSeg3D-Studio
 
-An web-based interactive 3D point cloud segmentation and annotation tool with AI-powered object detection.
+An web-based interactive 3D point cloud annotation tool, using [AGILE3D](https://github.com/ywyue/AGILE3D) for
+click-based segmentation algorithm and Gemini for 3D object detection.
+
+> [!NOTE]  
+> Note that this project is still in development. The current version is a prototype and may contain bugs.
+
 
 ![interSeg3D-Studio](assets/MainUI.png)
 
