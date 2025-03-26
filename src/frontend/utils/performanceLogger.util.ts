@@ -1,6 +1,6 @@
 // Simple utility for performance timing measurements
 
-export class PerformanceLogger {
+export class PerformanceLoggerUtil {
     private static timers: Record<string, number> = {};
     private static measurements: Record<string, number[]> = {};
     private static enabled: boolean = true;

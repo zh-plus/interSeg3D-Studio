@@ -1,20 +1,29 @@
 <template>
-  <div ref="container" class="point-cloud-viewer">
-    <!-- Loading overlay -->
-    <LoadingOverlay
+  <div class="point-cloud-viewer">
+    <!-- Use the extracted viewport component -->
+    <ViewportComponent
+        ref="viewportComponent"
+        :interaction-mode="uiStore.interactionMode"
+        :cursor-style="uiStore.cursorStyle"
+        @scene-ready="handleSceneReady"
+        @viewport-resize="handleViewportResize"
+        @render-error="handleRenderError"
+    >
+      <!-- Loading overlay -->
+      <LoadingOverlay
         :message="pointCloudStore.isLoading ? 'Loading point cloud...' : 'Processing...'"
         :progress="pointCloudStore.loadingProgress ?? undefined"
         :show="pointCloudStore.isLoading || annotationStore.isProcessingSelection"
-    />
+      />
 
-    <!-- Mode indicator -->
-    <ModeIndicator
+      <!-- Mode indicator -->
+      <ModeIndicator
         :click-mode="uiStore.clickMode"
         :mode="uiStore.interactionMode"
-    />
+      />
 
-    <!-- Selection info -->
-    <SelectionInfo
+      <!-- Selection info -->
+      <SelectionInfo
         :can-redo="annotationStore.canRedo"
         :can-undo="annotationStore.canUndo"
         :click-count="annotationStore.clickCount"
@@ -23,28 +32,28 @@
         :is-processing-selection="annotationStore.isProcessingSelection"
         :point-count="pointCloudStore.pointCloudData.pointCount"
         :show-debug="showDebug"
-    />
+      />
 
-    <!-- Undo/Redo notification -->
-    <div v-if="showUndoRedoNotification" class="undo-redo-notification">
-      {{ undoRedoNotificationText }}
-    </div>
+      <!-- Undo/Redo notification -->
+      <div v-if="showUndoRedoNotification" class="undo-redo-notification">
+        {{ undoRedoNotificationText }}
+      </div>
+    </ViewportComponent>
   </div>
 </template>
 
 <script lang="ts" setup>
-import {onBeforeUnmount, onMounted, ref, watch} from 'vue';
+import {ref, watch, onMounted, onBeforeUnmount, computed} from 'vue';
 import * as THREE from 'three';
-import {PerformanceLogger} from '@/utils/performance-logger';
-import {threeJsService} from '@/services/ThreeJsService';
+import {PerformanceLoggerUtil} from '@/utils/performanceLogger.util';
 
 // Components
+import ViewportComponent from './ViewportComponent.vue';
 import LoadingOverlay from './LoadingOverlay.vue';
 import ModeIndicator from './ModeIndicator.vue';
 import SelectionInfo from './SelectionInfo.vue';
 
 // Composables
-import {useThreeJsRenderer} from '@/composables/useThreeJsRenderer';
 import {useRaycasting} from '@/composables/useRaycasting';
 
 // Import Pinia stores
@@ -64,8 +73,8 @@ const pointCloudStore = usePointCloudStore();
 const annotationStore = useAnnotationStore();
 const uiStore = useUiStore();
 
-// DOM Container reference
-const container = ref<HTMLElement | null>(null);
+// Component references
+const viewportComponent = ref<InstanceType<typeof ViewportComponent> | null>(null);
 
 // Debug settings
 const showDebug = ref(import.meta.env.DEV || false);
@@ -75,46 +84,12 @@ const isSelecting = ref(false);
 const isDragging = ref(false);
 const startMousePosition = ref<{ x: number, y: number } | null>(null);
 
-// Function to update cursor style - define before watch statements
-const updateCursorStyle = () => {
-  if (!container.value) return;
-
-  console.log(`Setting cursor style to: ${uiStore.cursorStyle}`);
-  container.value.style.cursor = uiStore.cursorStyle;
-
-  // Also add active class for additional styling if needed
-  if (uiStore.interactionMode === 'navigate') {
-    container.value.classList.add('navigate-mode');
-    container.value.classList.remove('annotate-mode');
-  } else {
-    container.value.classList.add('annotate-mode');
-    container.value.classList.remove('navigate-mode');
-  }
-};
-
-// Watch for interaction mode changes to update the controls
-watch(() => uiStore.interactionMode, (newMode) => {
-  console.log(`PointCloudViewer detected interaction mode change to: ${newMode}`);
-  // Ensure ThreeJS controls are updated
-  uiStore.updateControlsState(newMode);
-  // Update cursor immediately
-  updateCursorStyle();
-}, {immediate: true});
-
-// Watch for cursor style changes
-watch(() => uiStore.cursorStyle, () => {
-  updateCursorStyle();
-});
-
 // Undo/Redo notification
 const showUndoRedoNotification = ref(false);
 const undoRedoNotificationText = ref('');
 const undoRedoNotificationTimer = ref<number | null>(null);
 
-// Initialize Three.js
-const {threeContext, refreshViewport} = useThreeJsRenderer(container);
-
-// Raycasting for point selection
+// Get raycasting functionality
 const {
   updateMousePosition,
   tryProgressiveRaycast,
@@ -122,21 +97,7 @@ const {
 } = useRaycasting({
   spatialIndex: pointCloudStore.spatialIndex,
   pointCloudData: pointCloudStore.pointCloudData,
-  cubeSize: uiStore.cubeSize,
-  container
-});
-
-// Watch for file changes
-watch(() => pointCloudStore.pointCloudData.file, async (newFile) => {
-  if (!newFile || pointCloudStore.isLoading) return;
-
-  // Clear any previous markers
-  annotationStore.clearMarkers();
-
-  // Emit loaded event
-  emit('point-cloud-loaded', {
-    pointCount: pointCloudStore.pointCloudData.pointCount
-  });
+  cubeSize: computed(() => uiStore.cubeSize)
 });
 
 // Watch for segmentation data changes
@@ -169,6 +130,35 @@ const showNotification = (text: string): void => {
 };
 
 /**
+ * Handle scene ready event
+ */
+const handleSceneReady = (context: any): void => {
+  console.log('Three.js scene is ready');
+
+  // Emit loaded event if point cloud is already available
+  if (pointCloudStore.pointCloudData.file) {
+    emit('point-cloud-loaded', {
+      pointCount: pointCloudStore.pointCloudData.pointCount
+    });
+  }
+};
+
+/**
+ * Handle viewport resize
+ */
+const handleViewportResize = ({width, height}: { width: number, height: number }): void => {
+  console.debug(`Viewport resized: ${width}x${height}`);
+};
+
+/**
+ * Handle render errors
+ */
+const handleRenderError = (error: any): void => {
+  console.error('Render error:', error);
+  emit('error', `Rendering error: ${error.message || 'Unknown error'}`);
+};
+
+/**
  * Handle mouse down event
  */
 const onMouseDown = (event: MouseEvent): void => {
@@ -176,20 +166,19 @@ const onMouseDown = (event: MouseEvent): void => {
 
   if (pointCloudStore.isLoading) return;
 
-  // Update cursor for dragging in navigate mode
-  if (uiStore.interactionMode === 'navigate' && event.button === 0 && container.value) {
-    container.value.style.cursor = 'grabbing';
-  }
-
   if (event.button === 2) {
     // Right-click: temporarily enable controls for panning
     event.preventDefault();
-    if (uiStore.interactionMode === 'annotate' && threeContext.value?.controls) {
-      threeContext.value.controls.enabled = true;
-      threeContext.value.controls.enablePan = true;
+    if (uiStore.interactionMode === 'annotate' && viewportComponent.value?.getContext()?.controls) {
+      const controls = viewportComponent.value.getContext()?.controls;
+      if (controls) {
+        controls.enabled = true;
+        controls.enablePan = true;
+      }
       // Set panning cursor
-      if (container.value) {
-        container.value.style.cursor = 'move';
+      const container = viewportComponent.value?.getContainer();
+      if (container) {
+        container.style.cursor = 'move';
       }
     }
     return;
@@ -212,11 +201,6 @@ const onMouseMove = (event: MouseEvent): void => {
 
   if (deltaX > 3 || deltaY > 3) {
     isDragging.value = true;
-
-    // Update cursor for dragging in navigate mode
-    if (uiStore.interactionMode === 'navigate' && event.buttons === 1 && container.value) {
-      container.value.style.cursor = 'grabbing';
-    }
   }
 };
 
@@ -229,13 +213,19 @@ const onMouseUp = (event: MouseEvent): void => {
   startMousePosition.value = null;
 
   // Reset cursor style
-  updateCursorStyle();
+  const container = viewportComponent.value?.getContainer();
+  if (container) {
+    container.style.cursor = uiStore.cursorStyle;
+  }
 
   if (event.button === 2) {
     // Right-click: restore controls state
-    if (uiStore.interactionMode === 'annotate' && threeContext.value?.controls) {
-      threeContext.value.controls.enabled = false;
-      threeContext.value.controls.enablePan = false;
+    if (uiStore.interactionMode === 'annotate' && viewportComponent.value?.getContext()?.controls) {
+      const controls = viewportComponent.value.getContext()?.controls;
+      if (controls) {
+        controls.enabled = false;
+        controls.enablePan = false;
+      }
     }
     return;
   }
@@ -251,9 +241,10 @@ const onMouseUp = (event: MouseEvent): void => {
  * Handle annotation click with improved viewport synchronization
  */
 const handleAnnotationClick = (event: MouseEvent): void => {
-  PerformanceLogger.start('total_click_processing');
+  PerformanceLoggerUtil.start('total_click_processing');
 
-  if (pointCloudStore.isLoading || !container.value) return;
+  const container = viewportComponent.value?.getContainer();
+  if (pointCloudStore.isLoading || !container) return;
 
   // Check valid click mode - if object mode requires currentObjectIdx, background mode doesn't
   if (uiStore.clickMode === 'object' && uiStore.currentObjectIdx === null) {
@@ -261,30 +252,8 @@ const handleAnnotationClick = (event: MouseEvent): void => {
     return;
   }
 
-  // Ensure the Three.js viewport is correctly sized and synchronized with the container
-  if (threeContext.value && threeContext.value.renderer) {
-    const canvasElement = threeContext.value.renderer.domElement;
-    const canvasRect = canvasElement.getBoundingClientRect();
-    const containerRect = container.value.getBoundingClientRect();
-
-    // Check if there's a significant mismatch between canvas and container
-    if (Math.abs(canvasRect.width - containerRect.width) > 1 ||
-        Math.abs(canvasRect.height - containerRect.height) > 1) {
-      console.debug(`Size mismatch detected before click processing:
-        Canvas: ${canvasRect.width.toFixed(0)}x${canvasRect.height.toFixed(0)}
-        Container: ${containerRect.width.toFixed(0)}x${containerRect.height.toFixed(0)}`);
-
-      // Force viewport update to ensure synchronized dimensions
-      threeJsService.updateViewport({
-        width: containerRect.width,
-        height: containerRect.height,
-        pixelRatio: Math.min(window.devicePixelRatio, 2)
-      });
-    }
-  }
-
-  // Get the latest container rect after ensuring synchronization
-  const rect = container.value.getBoundingClientRect();
+  // Get the latest container rect
+  const rect = container.getBoundingClientRect();
 
   // Debug log container and click position
   console.debug(`Click at (${event.clientX}, ${event.clientY}) in container ${rect.width.toFixed(0)}x${rect.height.toFixed(0)}`);
@@ -328,7 +297,37 @@ const handleAnnotationClick = (event: MouseEvent): void => {
   }
 
   annotationStore.isProcessingSelection = false;
-  PerformanceLogger.end('total_click_processing');
+  PerformanceLoggerUtil.end('total_click_processing');
+};
+
+/**
+ * Handle wheel event for zooming in annotation mode
+ */
+const onWheel = (event: WheelEvent): void => {
+  if (uiStore.interactionMode === 'annotate' && viewportComponent.value?.getContext()?.camera) {
+    event.preventDefault();
+
+    const context = viewportComponent.value.getContext();
+    if (!context || !context.camera) return;
+
+    const zoomSpeed = 0.1;
+    const zoomDelta = -Math.sign(event.deltaY) * zoomSpeed;
+
+    const direction = new THREE.Vector3(0, 0, 0);
+    context.camera.getWorldDirection(direction);
+
+    if (context.controls) {
+      const distance = context.camera.position.distanceTo(
+          context.controls.target
+      );
+      const scaleFactor = distance * zoomDelta;
+
+      context.camera.position.addScaledVector(direction, scaleFactor);
+    }
+
+    // Force render update
+    viewportComponent.value.renderScene();
+  }
 };
 
 /**
@@ -375,18 +374,10 @@ const refreshMarkers = () => {
 const forceRenderUpdate = () => {
   console.log('Force rendering update requested');
 
-  if (!threeContext.value) return;
+  if (!viewportComponent.value) return;
 
   try {
-    // Extract objects from context to avoid proxy issues
-    const {scene, camera, renderer, pointCloud} = threeContext.value;
-
-    if (!scene || !camera || !renderer || !pointCloud) {
-      console.warn('Missing Three.js objects for rendering');
-      return;
-    }
-
-    // Access geometry directly from the service to avoid proxy issues
+    // Access geometry directly from the store to avoid proxy issues
     if (pointCloudStore.pointCloudData.geometry) {
       // Mark color buffer as needing update
       const colorAttrib = pointCloudStore.pointCloudData.geometry.attributes.color;
@@ -395,51 +386,25 @@ const forceRenderUpdate = () => {
       }
     }
 
-    // Use the service to trigger a render instead of calling it directly
-    threeJsService.renderScene();
-
+    // Use the viewport component to trigger a render
+    viewportComponent.value.renderScene();
     console.log('Manual render completed');
   } catch (error) {
     console.error('Error during force render:', error);
-  }
-};
-
-/**
- * Handle wheel event for zooming in annotation mode
- */
-const onWheel = (event: WheelEvent): void => {
-  if (uiStore.interactionMode === 'annotate' && threeContext.value?.camera) {
-    event.preventDefault();
-
-    const zoomSpeed = 0.1;
-    const zoomDelta = -Math.sign(event.deltaY) * zoomSpeed;
-
-    const direction = new THREE.Vector3(0, 0, 0);
-    threeContext.value.camera.getWorldDirection(direction);
-
-    if (threeContext.value.controls) {
-      const distance = threeContext.value.camera.position.distanceTo(
-          threeContext.value.controls.target
-      );
-      const scaleFactor = distance * zoomDelta;
-
-      threeContext.value.camera.position.addScaledVector(direction, scaleFactor);
-    }
+    handleRenderError(error);
   }
 };
 
 // Set up event handlers
 onMounted(() => {
-  if (!container.value) return;
+  const container = viewportComponent.value?.getContainer();
+  if (!container) return;
 
   // Add event listeners
-  container.value.addEventListener('mousedown', onMouseDown);
-  container.value.addEventListener('mousemove', onMouseMove);
-  container.value.addEventListener('mouseup', onMouseUp);
-  container.value.addEventListener('wheel', onWheel, {passive: false});
-
-  // Initialize cursor style based on current mode
-  updateCursorStyle();
+  container.addEventListener('mousedown', onMouseDown);
+  container.addEventListener('mousemove', onMouseMove);
+  container.addEventListener('mouseup', onMouseUp);
+  container.addEventListener('wheel', onWheel, {passive: false});
 
   // Add keyboard event listener for undo/redo
   window.addEventListener('keydown', (e: KeyboardEvent) => {
@@ -474,13 +439,14 @@ onMounted(() => {
 
 // Clean up event handlers
 onBeforeUnmount(() => {
-  if (!container.value) return;
+  const container = viewportComponent.value?.getContainer();
+  if (!container) return;
 
   // Remove event listeners
-  container.value.removeEventListener('mousedown', onMouseDown);
-  container.value.removeEventListener('mousemove', onMouseMove);
-  container.value.removeEventListener('mouseup', onMouseUp);
-  container.value.removeEventListener('wheel', onWheel);
+  container.removeEventListener('mousedown', onMouseDown);
+  container.removeEventListener('mousemove', onMouseMove);
+  container.removeEventListener('mouseup', onMouseUp);
+  container.removeEventListener('wheel', onWheel);
 
   // Remove keyboard event listener
   window.removeEventListener('keydown', handleKeydown);
@@ -496,10 +462,11 @@ function handleKeydown(e: KeyboardEvent): void {
   // Implementation moved to the inline event listener above
 }
 
+// Expose methods to parent
 defineExpose({
   performUndo,
   performRedo,
-  refreshViewport,
+  refreshViewport: () => viewportComponent.value?.refreshViewport(),
   refreshMarkers,
   forceRenderUpdate,
   getClickDataForApi: () => annotationStore.clickDataForApi

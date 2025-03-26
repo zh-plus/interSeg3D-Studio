@@ -1,5 +1,5 @@
 import {ref} from 'vue';
-import {apiService} from '@/services/ApiService';
+import {apiService} from '@/services/api.service';
 
 /**
  * Composable for debugging tools - only active in development mode

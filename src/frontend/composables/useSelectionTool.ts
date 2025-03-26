@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import {PointCloudData} from '@/types/PointCloud';
 import {ClickPoint, SelectionOptions} from '@/types/Selection';
 import {PerformanceLogger} from '@/utils/performance-logger';
-import {GridSpatialIndex} from '@/utils/GridSpatialIndex';
+import {GridSpatialIndex} from '@/utils/GridSpatialIndexUtil';
 import {getSelectionColor} from '@/utils/color-utils';
 
 // Add interface for the history action

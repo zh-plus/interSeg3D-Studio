@@ -1,15 +1,21 @@
 import {computed, Ref, ref} from 'vue';
 import * as THREE from 'three';
-import {ClickResult, RaycastResult} from '@/types/SelectionTypes';
-import {threeJsService} from '@/services/ThreeJsService';
-import {PerformanceLogger} from '@/utils/performance-logger';
+import {ClickResult, RaycastResult} from '@/types/selection.types';
+import {threeJsService} from '@/services/threeJs.service';
+import {PerformanceLoggerUtil} from '@/utils/performanceLogger.util';
 import {usePointCloudStore} from '@/stores';
+import {GridSpatialIndexUtil} from '@/utils/gridSpatialIndex.util';
+import {PointCloudData} from "@/types/pointCloud.types";
 
 interface UseRaycastingOptions {
     // Reference to the container element
     container?: Ref<HTMLElement | null>;
-    // Optional cube size override (defaults to using store value)
+    // Optional cube size override
     cubeSize?: Ref<number>;
+    // Spatial index for optimized point finding
+    spatialIndex?: Ref<GridSpatialIndexUtil | null>;
+    // Point cloud data
+    pointCloudData?: Ref<PointCloudData>;
 }
 
 /**
@@ -72,17 +78,17 @@ export function useRaycasting(options?: UseRaycastingOptions) {
      * @returns The raycasting result
      */
     const performRaycast = (threshold?: number): RaycastResult | null => {
-        PerformanceLogger.start('raycasting');
+        PerformanceLoggerUtil.start('raycasting');
 
         const context = threeJsService.getContext();
         if (!context.raycaster || !context.camera || !context.pointCloud) {
-            PerformanceLogger.end('raycasting');
+            PerformanceLoggerUtil.end('raycasting');
             return null;
         }
 
         // Set raycaster from camera and mouse position
         if (!lastMousePosition.value) {
-            PerformanceLogger.end('raycasting');
+            PerformanceLoggerUtil.end('raycasting');
             return null;
         }
 
@@ -103,7 +109,7 @@ export function useRaycasting(options?: UseRaycastingOptions) {
         // Perform raycasting
         const intersects = context.raycaster.intersectObject(context.pointCloud, false);
 
-        PerformanceLogger.end('raycasting');
+        PerformanceLoggerUtil.end('raycasting');
 
         if (intersects.length > 0) {
             return {
@@ -147,7 +153,7 @@ export function useRaycasting(options?: UseRaycastingOptions) {
         position: THREE.Vector3,
         maxDistance: number = 0.1
     ): ClickResult | null => {
-        PerformanceLogger.start('find_nearest_point');
+        PerformanceLoggerUtil.start('find_nearest_point');
 
         // Use spatial index if available
         if (pointCloudStore.spatialIndex && pointCloudStore.pointCloudData.positions) {
@@ -178,7 +184,7 @@ export function useRaycasting(options?: UseRaycastingOptions) {
                 }
 
                 if (nearestIndex >= 0) {
-                    PerformanceLogger.end('find_nearest_point');
+                    PerformanceLoggerUtil.end('find_nearest_point');
                     return {
                         position: [
                             positions[nearestIndex * 3],
@@ -191,7 +197,7 @@ export function useRaycasting(options?: UseRaycastingOptions) {
             }
         }
 
-        PerformanceLogger.end('find_nearest_point');
+        PerformanceLoggerUtil.end('find_nearest_point');
         return null;
     };
 

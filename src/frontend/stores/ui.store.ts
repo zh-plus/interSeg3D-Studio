@@ -1,7 +1,7 @@
 import {defineStore} from 'pinia';
 import {computed, ref} from 'vue';
-import {ClickMode, InteractionMode} from '@/types/SelectionTypes';
-import {threeJsService} from '@/services/ThreeJsService';
+import {ClickMode, InteractionMode} from '@/types/selection.types';
+import {threeJsService} from '@/services/threeJs.service';
 
 export interface ObjectData {
   id: number;

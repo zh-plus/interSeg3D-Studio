@@ -1,7 +1,7 @@
 import {markRaw, onBeforeUnmount, onMounted, Ref, shallowRef} from 'vue';
-import {ThreeJsContext} from '@/types/ThreeJsTypes';
-import {threeJsService} from '@/services/ThreeJsService';
-import {debounce} from '@/utils/debounce';
+import {ThreeJsContext} from '@/types/threeJs.types';
+import {threeJsService} from '@/services/threeJs.service';
+import {debounce} from '@/utils/debounce.util';
 
 export function useThreeJsRenderer(container: Ref<HTMLElement | null>) {
     // Use shallowRef instead of ref for Three.js objects to prevent deep reactivity
