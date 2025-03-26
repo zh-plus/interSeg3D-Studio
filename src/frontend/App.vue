@@ -1,7 +1,7 @@
 <template>
   <v-app>
     <v-app-bar app color="primary">
-      <v-app-bar-title>AGILE3D - Interactive Segmentation</v-app-bar-title>
+      <v-app-bar-title>interSeg3D-Studio - Interactive 3D Segmentation Studio</v-app-bar-title>
       <v-spacer></v-spacer>
       <v-btn icon @click="toggleInstructions">
         <v-icon>mdi-help-circle-outline</v-icon>
