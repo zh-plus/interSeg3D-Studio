@@ -29,7 +29,7 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 app.add_middleware(
     CORSMiddleware,
     # List specific origins instead of using wildcard "*"
-    allow_origins=["http://localhost:3001", "http://127.0.0.1:3001"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -284,6 +284,8 @@
               <v-list-item-content>
                 <v-list-item-title>Keyboard Shortcuts</v-list-item-title>
                 <v-list-item-subtitle>Press "A" to toggle between navigation and annotation modes</v-list-item-subtitle>
+                <v-list-item-subtitle>Press "N" to create a new object with default name "new obj"
+                </v-list-item-subtitle>
                 <v-list-item-subtitle>Press "Ctrl+Z" to undo the last click</v-list-item-subtitle>
                 <v-list-item-subtitle>Press "Shift+Ctrl+Z" to redo an undone click</v-list-item-subtitle>
               </v-list-item-content>
@@ -592,6 +594,12 @@ function handleKeydown(e: KeyboardEvent) {
   if (e.key === 'a' || e.key === 'A') {
     uiStore.toggleInteractionMode();
     console.log(`App.vue: Keyboard shortcut - Switched to ${uiStore.interactionMode} mode`);
+  }
+
+  // 'N' key to create a new object with default name
+  if (e.key === 'n' || e.key === 'N') {
+    uiStore.createNewObject("new obj");
+    console.log(`App.vue: Keyboard shortcut - Created new object with default name`);
   }
 }
 

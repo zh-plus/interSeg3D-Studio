@@ -97,6 +97,7 @@ click-based segmentation algorithm and Gemini for 3D object recognition & descri
 - **A**: Toggle between navigation and annotation modes
 - **Ctrl+Z**: Undo the last click
 - **Shift+Ctrl+Z**: Redo an undone click
+- **N**: Create a new object with default name "new obj"
 
 ### Mouse Controls
 
