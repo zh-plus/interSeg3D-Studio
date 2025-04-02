@@ -5,6 +5,10 @@ import zipfile
 import numpy as np
 import open3d as o3d
 
+from logger import get_logger
+
+logger = get_logger("app_utils")
+
 
 class NumpyEncoder(json.JSONEncoder):
     """Custom JSON encoder for numpy/torch types"""
@@ -41,15 +45,20 @@ def create_colored_ply(coords, colors, mask, is_point_cloud, original_geometry_p
     new_colors = np.ones((len(coords), 3)) * 0.7  # Default scene color (light gray)
 
     # Apply object colors based on mask
-    for obj_id in np.unique(mask):
+    unique_obj_ids = np.unique(mask)
+    logger.info(f"Coloring {len(unique_obj_ids)} unique object IDs")
+
+    for obj_id in unique_obj_ids:
         if obj_id > 0:  # Skip background
             obj_mask = mask == obj_id
             obj_color = get_obj_color_func(obj_id, normalize=True)
             new_colors[obj_mask] = obj_color
+            logger.info(f"Applied color to object {obj_id}: {np.sum(obj_mask)} points")
 
     # Create a new geometry with these colors
     if not is_point_cloud:
         # It's a mesh
+        logger.info(f"Processing as mesh: {original_geometry_path}")
         original_mesh = o3d.io.read_triangle_mesh(original_geometry_path)
         new_geometry = o3d.geometry.TriangleMesh()
         new_geometry.vertices = o3d.utility.Vector3dVector(coords)
@@ -59,11 +68,13 @@ def create_colored_ply(coords, colors, mask, is_point_cloud, original_geometry_p
         o3d.io.write_triangle_mesh(output_path, new_geometry)
     else:
         # It's a point cloud
+        logger.info(f"Processing as point cloud: {original_geometry_path}")
         new_geometry = o3d.geometry.PointCloud()
         new_geometry.points = o3d.utility.Vector3dVector(coords)
         new_geometry.colors = o3d.utility.Vector3dVector(new_colors)
         o3d.io.write_point_cloud(output_path, new_geometry)
 
+    logger.info(f"Created colored geometry file: {output_path}")
     return output_path
 
 
@@ -82,6 +93,8 @@ def generate_metadata_json(mask, new_ply_path, original_file_path, object_info, 
     Returns:
         dict: Metadata dictionary
     """
+    logger.info("Generating metadata JSON")
+
     metadata = {
         "objects": [],
         "file_info": {
@@ -92,6 +105,7 @@ def generate_metadata_json(mask, new_ply_path, original_file_path, object_info, 
 
     # Add object information from recognition results if available
     if object_info:
+        logger.info(f"Adding object info from recognition results: {len(object_info)} objects")
         for obj_info in object_info:
             # Extract object ID (usually in the 'label' field or from the order)
             obj_id = None
@@ -128,8 +142,10 @@ def generate_metadata_json(mask, new_ply_path, original_file_path, object_info, 
                 obj_data["cost"] = float(obj_info["cost"])
 
             metadata["objects"].append(obj_data)
+            logger.info(f"Added object {obj_id} to metadata")
     else:
         # If no object info, include basic information based on the mask
+        logger.info("No object info available, creating basic metadata from mask")
         unique_obj_ids = np.unique(mask)
         for obj_id in unique_obj_ids:
             if obj_id > 0:  # Skip background
@@ -142,9 +158,11 @@ def generate_metadata_json(mask, new_ply_path, original_file_path, object_info, 
                     "label": f"Object {obj_id}",
                     "color": obj_color
                 })
+                logger.info(f"Added basic object {obj_id} to metadata")
 
     # Add click information if available
     if inference_obj and inference_obj.click_handler:
+        logger.info("Adding click data to metadata")
         click_data = []
         for click in inference_obj.click_handler.clicks:
             # Convert click to dict and ensure values are JSON serializable
@@ -163,6 +181,7 @@ def generate_metadata_json(mask, new_ply_path, original_file_path, object_info, 
             click_data.append(click_dict)
 
         metadata["click_data"] = click_data
+        logger.info(f"Added {len(click_data)} clicks to metadata")
 
     # Count points per object from the mask
     unique_values, counts = np.unique(mask, return_counts=True)
@@ -172,6 +191,7 @@ def generate_metadata_json(mask, new_ply_path, original_file_path, object_info, 
             object_counts[int(val)] = int(counts[i])
 
     metadata["object_counts"] = object_counts
+    logger.info(f"Added point counts for {len(object_counts)} objects to metadata")
 
     return metadata
 
@@ -190,21 +210,32 @@ def create_zip_file(files_to_zip, output_zip_path):
     # Verify source files exist
     for file_path in files_to_zip.keys():
         if not os.path.exists(file_path):
+            logger.error(f"Source file not found: {file_path}")
             raise FileNotFoundError(f"Source file not found: {file_path}")
         if not os.path.isfile(file_path):
+            logger.error(f"Source path is not a file: {file_path}")
             raise ValueError(f"Source path is not a file: {file_path}")
 
     # Ensure the parent directory exists
     os.makedirs(os.path.dirname(output_zip_path), exist_ok=True)
 
+    logger.info(f"Creating zip file with {len(files_to_zip)} files at: {output_zip_path}")
+
     # Create the zip file
     with zipfile.ZipFile(output_zip_path, 'w') as zipf:
         for file_path, arc_name in files_to_zip.items():
+            logger.debug(f"Adding to zip: {file_path} as {arc_name}")
+            file_size = os.path.getsize(file_path)
+            logger.debug(f"File size: {file_size} bytes")
             zipf.write(file_path, arcname=arc_name)
 
     # Verify the zip file was created
     if not os.path.exists(output_zip_path):
+        logger.error(f"Failed to create zip file at {output_zip_path}")
         raise FileNotFoundError(f"Failed to create zip file at {output_zip_path}")
+
+    zip_size = os.path.getsize(output_zip_path)
+    logger.info(f"Created zip file: {output_zip_path}, size: {zip_size} bytes")
 
     return output_zip_path
 
@@ -219,16 +250,22 @@ def load_point_cloud_data(file_path):
     Returns:
         tuple: (coords, colors, is_point_cloud)
     """
+    logger.info(f"Loading point cloud data from: {file_path}")
+
     pcd_type = o3d.io.read_file_geometry_type(file_path)
     if pcd_type == o3d.io.FileGeometry.CONTAINS_TRIANGLES:
+        logger.info(f"File contains triangles, loading as mesh")
         geometry = o3d.io.read_triangle_mesh(file_path)
         coords = np.array(geometry.vertices)
         colors = np.array(geometry.vertex_colors) if geometry.has_vertex_colors() else np.ones((len(coords), 3)) * 0.5
         is_point_cloud = False
+        logger.info(f"Loaded mesh with {len(coords)} vertices")
     else:
+        logger.info(f"File contains points, loading as point cloud")
         geometry = o3d.io.read_point_cloud(file_path)
         coords = np.array(geometry.points)
         colors = np.array(geometry.colors) if geometry.has_colors() else np.ones((len(coords), 3)) * 0.5
         is_point_cloud = True
+        logger.info(f"Loaded point cloud with {len(coords)} points")
 
     return coords, colors, is_point_cloud

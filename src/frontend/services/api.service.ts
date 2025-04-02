@@ -1,45 +1,14 @@
 import axios, {AxiosError, AxiosRequestConfig, AxiosResponse} from 'axios';
-import {SegmentedPointCloud} from '@/types/pointCloud.types';
-import {ApiClickData} from '@/types/annotation.types';
+import {
+    ApiErrorInfo,
+    InferenceRequest,
+    InferenceResponse,
+    MaskObjectRecognitionResponse
+} from '@/types/apiService.types';
 
 // Configuration from environment variables
 const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'http://172.18.35.200:9500';
 const USE_PROXY = import.meta.env.VITE_USE_PROXY !== 'false';
-
-// Interfaces for API requests and responses
-export interface InferenceRequest {
-    clickData: ApiClickData;
-    cubeSize: number;
-    objectNames: string[];
-}
-
-export interface InferenceResponse {
-    message: string;
-    segmentedPointCloud: SegmentedPointCloud;
-}
-
-export interface MaskObjectRecognitionRequest {
-    mask: number[];
-}
-
-export interface MaskObjectRecognitionResult {
-    selected_views: number[];
-    description: string;
-    label: string;
-    cost?: number;
-}
-
-export interface MaskObjectRecognitionResponse {
-    message: string;
-    result: MaskObjectRecognitionResult[];
-}
-
-export interface ApiErrorInfo {
-    message: string;
-    status?: number;
-    data?: any;
-    isNetworkError: boolean;
-}
 
 // Create axios instance with base URL
 export const api = axios.create({

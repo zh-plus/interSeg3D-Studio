@@ -19,6 +19,9 @@ import torch
 
 from interactive_tool.utils import get_obj_color
 from models import build_model
+from logger import get_logger, StepTimer, timed
+
+logger = get_logger("inference")
 
 
 @dataclass
@@ -103,10 +106,12 @@ class ClickHandler:
         )
         self.clicks.append(click)
         self.next_time_idx += 1
+        logger.debug(f"Added click for object {obj_idx} ({obj_name}) at position {position.tolist()}")
         return click
 
     def add_clicks_from_file(self, filepath: str, coords: torch.Tensor) -> None:
         """Load clicks from a JSON file and add them to the handler."""
+        logger.info(f"Loading clicks from file: {filepath}")
         with open(filepath, 'r') as f:
             click_data = json.load(f)
 
@@ -127,17 +132,22 @@ class ClickHandler:
             # Update model-compatible formats
             self._update_click_dicts(click)
 
+        logger.info(f"Loaded {len(self.clicks)} clicks from file")
+
     def save_clicks_to_file(self, filepath: str) -> None:
         """Save all clicks to a JSON file."""
+        logger.info(f"Saving {len(self.clicks)} clicks to file: {filepath}")
         click_data = []
         for click in self.clicks:
             click_data.append(click.to_dict())
 
         with open(filepath, 'w') as f:
             json.dump(click_data, f, indent=2)
+        logger.info(f"Clicks saved to: {filepath}")
 
     def process_clicks(self, coords: torch.Tensor) -> None:
         """Find nearest points in the point cloud for all clicks."""
+        logger.info(f"Processing {len(self.clicks)} clicks")
         self.click_idx = {'0': []}
         self.click_time_idx = {'0': []}
         self.click_positions = {'0': []}
@@ -149,6 +159,7 @@ class ClickHandler:
     def _update_click_dicts(self, click: Click) -> None:
         """Update the dictionaries used by the model with a click."""
         if click.id is None:
+            logger.warning(f"Click has no ID, skipping dictionary update")
             return
 
         obj_key = str(click.obj_idx)
@@ -160,10 +171,12 @@ class ClickHandler:
         self.click_idx[obj_key].append(click.id)
         self.click_time_idx[obj_key].append(click.time_idx)
         self.click_positions[obj_key].append(click.position.detach().cpu().numpy().tolist())
+        logger.debug(f"Updated click dictionaries for object {obj_key}, click ID {click.id}")
 
     def get_click_data_for_model(self) -> Tuple[
         Dict[str, List[int]], Dict[str, List[int]], Dict[str, List[List[float]]]]:
         """Get the click data in the format expected by the model."""
+        logger.debug(f"Getting click data for model: {sum(len(v) for v in self.click_idx.values())} total clicks")
         return self.click_idx, self.click_time_idx, self.click_positions
 
     def get_all_click_masks(self, coords: torch.Tensor) -> Dict[int, np.ndarray]:
@@ -177,6 +190,7 @@ class ClickHandler:
             cube_mask = click.get_cube_mask(coords)
             masks[click.obj_idx] = np.logical_or(masks[click.obj_idx], cube_mask)
 
+        logger.debug(f"Created masks for {len(masks)} objects")
         return masks
 
 
@@ -185,6 +199,7 @@ class PointCloudInference:
 
     def __init__(self, pretraining_weights='agile3d/weights/checkpoint1099.pth', voxel_size=0.05):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        logger.info(f"Using device: {self.device}")
 
         # Set default model parameters
         self.config = type('config', (), {
@@ -213,24 +228,25 @@ class PointCloudInference:
             'aux': True
         })
 
-        # Load model
-        self.model = build_model(self.config)
-        self.model.to(self.device)
-        self.model.eval()
+        with StepTimer("Loading model"):
+            # Load model
+            self.model = build_model(self.config)
+            self.model.to(self.device)
+            self.model.eval()
 
-        if pretraining_weights:
-            map_location = None if torch.cuda.is_available() else 'cpu'
-            model_dict = torch.load(pretraining_weights, map_location=map_location)
-            missing_keys, unexpected_keys = self.model.load_state_dict(model_dict['model'], strict=False)
+            if pretraining_weights:
+                map_location = None if torch.cuda.is_available() else 'cpu'
+                model_dict = torch.load(pretraining_weights, map_location=map_location)
+                missing_keys, unexpected_keys = self.model.load_state_dict(model_dict['model'], strict=False)
 
-            unexpected_keys = [k for k in unexpected_keys if
-                               not (k.endswith('total_params') or k.endswith('total_ops'))]
-            if len(missing_keys) > 0:
-                print('Missing Keys: {}'.format(missing_keys))
-            if len(unexpected_keys) > 0:
-                print('Unexpected Keys: {}'.format(unexpected_keys))
+                unexpected_keys = [k for k in unexpected_keys if
+                                   not (k.endswith('total_params') or k.endswith('total_ops'))]
+                if len(missing_keys) > 0:
+                    logger.warning(f'Missing Keys: {missing_keys}')
+                if len(unexpected_keys) > 0:
+                    logger.warning(f'Unexpected Keys: {unexpected_keys}')
 
-        print(f"Model loaded from {pretraining_weights}")
+        logger.info(f"Model loaded from {pretraining_weights}")
         self.quantization_size = voxel_size
 
         # Initialize data structures
@@ -247,10 +263,13 @@ class PointCloudInference:
         self.inverse_map = None
         self.unique_map = None
         self.raw_coords_qv = None
+        self.last_loaded_file = None
+        self.point_type = None
 
+    @timed
     def load_point_cloud(self, filepath: Union[str, Path]) -> None:
         """Load a point cloud from a PLY file."""
-        print(f"Loading point cloud from {filepath}")
+        logger.info(f"Loading point cloud from {filepath}")
         self.last_loaded_file = filepath
 
         # Convert Path to string if needed
@@ -264,114 +283,133 @@ class PointCloudInference:
         # Determine geometry type
         pcd_type = o3d.io.read_file_geometry_type(filepath)
 
-        if pcd_type == o3d.io.FileGeometry.CONTAINS_TRIANGLES:
-            mesh = o3d.io.read_triangle_mesh(filepath)
-            self.point_cloud = mesh
-            self.coords = np.array(mesh.vertices)
-            self.colors = np.array(mesh.vertex_colors) if mesh.has_vertex_colors() else np.ones(
-                (len(mesh.vertices), 3)) * 0.5
-            self.point_type = "mesh"
-            print(f"Loaded mesh with {len(mesh.vertices)} vertices")
-        elif pcd_type == o3d.io.FileGeometry.CONTAINS_POINTS:
-            pcd = o3d.io.read_point_cloud(filepath)
-            self.point_cloud = pcd
-            self.coords = np.array(pcd.points)
-            self.colors = np.array(pcd.colors) if pcd.has_colors() else np.ones((len(pcd.points), 3)) * 0.5
-            self.point_type = "pointcloud"
-            print(f"Loaded point cloud with {len(pcd.points)} points")
-        else:
-            raise ValueError(f"Unknown point cloud format in {filepath}")
+        with StepTimer("Loading geometry"):
+            if pcd_type == o3d.io.FileGeometry.CONTAINS_TRIANGLES:
+                mesh = o3d.io.read_triangle_mesh(filepath)
+                self.point_cloud = mesh
+                self.coords = np.array(mesh.vertices)
+                self.colors = np.array(mesh.vertex_colors) if mesh.has_vertex_colors() else np.ones(
+                    (len(mesh.vertices), 3)) * 0.5
+                self.point_type = "mesh"
+                logger.info(f"Loaded mesh with {len(mesh.vertices)} vertices")
+            elif pcd_type == o3d.io.FileGeometry.CONTAINS_POINTS:
+                pcd = o3d.io.read_point_cloud(filepath)
+                self.point_cloud = pcd
+                self.coords = np.array(pcd.points)
+                self.colors = np.array(pcd.colors) if pcd.has_colors() else np.ones((len(pcd.points), 3)) * 0.5
+                self.point_type = "pointcloud"
+                logger.info(f"Loaded point cloud with {len(pcd.points)} points")
+            else:
+                raise ValueError(f"Unknown point cloud format in {filepath}")
 
         # Reset click handler for new point cloud
         self.click_handler = ClickHandler()
 
         # Preprocess for model inference
-        self._preprocess_point_cloud()
+        with StepTimer("Preprocessing point cloud"):
+            self._preprocess_point_cloud()
 
     def _preprocess_point_cloud(self) -> None:
         """Prepare the point cloud for model inference."""
-        # Sparse quantization as in original code
-        coords_qv, unique_map, inverse_map = ME.utils.sparse_quantize(
-            coordinates=self.coords,
-            quantization_size=self.quantization_size,
-            return_index=True,
-            return_inverse=True
-        )
+        logger.info("Preprocessing point cloud for model inference")
 
-        self.coords_qv = coords_qv
-        self.unique_map = unique_map
-        self.inverse_map = inverse_map.to(self.device)
-        self.colors_qv = torch.from_numpy(self.colors[unique_map]).float()
-        self.raw_coords_qv = torch.from_numpy(self.coords[unique_map]).float().to(self.device)
+        with StepTimer("Sparse quantization"):
+            # Sparse quantization as in original code
+            coords_qv, unique_map, inverse_map = ME.utils.sparse_quantize(
+                coordinates=self.coords,
+                quantization_size=self.quantization_size,
+                return_index=True,
+                return_inverse=True
+            )
 
-        # Compute backbone features
-        data = ME.SparseTensor(
-            coordinates=ME.utils.batched_coordinates([self.coords_qv]),
-            features=self.colors_qv,
-            device=self.device
-        )
+            logger.info(f"Quantized {len(self.coords)} points to {len(coords_qv)} voxels")
 
-        self.pcd_features, self.aux, self.coordinates, self.pos_encodings_pcd = self.model.forward_backbone(
-            data, raw_coordinates=self.raw_coords_qv
-        )
+            self.coords_qv = coords_qv
+            self.unique_map = unique_map
+            self.inverse_map = inverse_map.to(self.device)
+            self.colors_qv = torch.from_numpy(self.colors[unique_map]).float()
+            self.raw_coords_qv = torch.from_numpy(self.coords[unique_map]).float().to(self.device)
 
-        print(f"Processed point cloud features: {self.pcd_features.F.shape}")
+        with StepTimer("Computing backbone features"):
+            # Compute backbone features
+            data = ME.SparseTensor(
+                coordinates=ME.utils.batched_coordinates([self.coords_qv]),
+                features=self.colors_qv,
+                device=self.device
+            )
+
+            self.pcd_features, self.aux, self.coordinates, self.pos_encodings_pcd = self.model.forward_backbone(
+                data, raw_coordinates=self.raw_coords_qv
+            )
+
+        logger.info(f"Processed point cloud features: {self.pcd_features.F.shape}")
 
     def load_clicks(self, filepath: str) -> None:
         """Load clicks from a file."""
         # Use raw_coords_qv for nearest point calculation
         self.click_handler.add_clicks_from_file(filepath, self.raw_coords_qv)
-        print(f"Loaded {len(self.click_handler.clicks)} clicks from {filepath}")
+        logger.info(f"Loaded {len(self.click_handler.clicks)} clicks from {filepath}")
 
     def add_click(self, position: Union[np.ndarray, List[float], torch.Tensor], obj_idx: int, obj_name: str,
                   is_positive: bool = True, cube_size: float = 0.02) -> Click:
         """Add a new click and process it."""
+        logger.info(f"Adding click for object {obj_idx} ({obj_name}) at position {position}")
         click = self.click_handler.add_click(position, obj_idx, obj_name, is_positive, cube_size)
         # Use raw_coords_qv for nearest point calculation
         click.find_nearest_point(self.raw_coords_qv)
         return click
 
+    @timed
     def run_inference(self) -> np.ndarray:
         """Run model inference with the current clicks."""
+        logger.info("Running inference")
+
         if self.coords is None or self.pcd_features is None:
             raise ValueError("Point cloud not loaded or processed. Call load_point_cloud first.")
 
         if not self.click_handler.clicks:
             raise ValueError("No clicks available. Add clicks before running inference.")
 
-        # Process all clicks to find their nearest points using raw_coords_qv
-        self.click_handler.process_clicks(self.raw_coords_qv)
+        with StepTimer("Processing clicks"):
+            # Process all clicks to find their nearest points using raw_coords_qv
+            self.click_handler.process_clicks(self.raw_coords_qv)
 
-        # Get click data in the format required by the model
-        click_idx, click_time_idx, click_positions = self.click_handler.get_click_data_for_model()
+            # Get click data in the format required by the model
+            click_idx, click_time_idx, click_positions = self.click_handler.get_click_data_for_model()
 
-        # Run model inference
-        outputs = self.model.forward_mask(
-            self.pcd_features,
-            self.aux,
-            self.coordinates,
-            self.pos_encodings_pcd,
-            click_idx=[click_idx],
-            click_time_idx=[click_time_idx]
-        )
+            # Log click data statistics
+            click_stats = {obj_id: len(indices) for obj_id, indices in click_idx.items()}
+            logger.info(f"Click statistics by object: {click_stats}")
 
-        # Process predictions
-        pred = outputs['pred_masks'][0].argmax(1)
+        with StepTimer("Running model forward pass"):
+            # Run model inference
+            outputs = self.model.forward_mask(
+                self.pcd_features,
+                self.aux,
+                self.coordinates,
+                self.pos_encodings_pcd,
+                click_idx=[click_idx],
+                click_time_idx=[click_time_idx]
+            )
 
-        # Ensure click points match their object labels
-        for obj_id, cids in click_idx.items():
-            if obj_id != '0':  # Skip background class
-                pred[cids] = int(obj_id)
+        with StepTimer("Processing predictions"):
+            # Process predictions
+            pred = outputs['pred_masks'][0].argmax(1)
 
-        # Apply cube area masks for each click (similar to the GUI behavior)
-        click_masks = self.click_handler.get_all_click_masks(self.raw_coords_qv)
-        for obj_idx, mask in click_masks.items():
-            if obj_idx != 0:  # Skip background
-                pred[mask] = obj_idx
+            # Ensure click points match their object labels
+            for obj_id, cids in click_idx.items():
+                if obj_id != '0':  # Skip background class
+                    pred[cids] = int(obj_id)
 
-        # Map back to original point cloud
-        pred_full = pred[self.inverse_map]
-        mask = pred_full.cpu().numpy()
+            # Apply cube area masks for each click (similar to the GUI behavior)
+            click_masks = self.click_handler.get_all_click_masks(self.raw_coords_qv)
+            for obj_idx, mask in click_masks.items():
+                if obj_idx != 0:  # Skip background
+                    pred[mask] = obj_idx
+
+            # Map back to original point cloud
+            pred_full = pred[self.inverse_map]
+            mask = pred_full.cpu().numpy()
 
         # Save prediction data
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -381,11 +419,20 @@ class PointCloudInference:
         num_click = sum([len(c) for c in click_idx.values()])
         avg_clicks = round(num_click / max(num_obj, 1), 1)
 
-        print(f"Inference complete. Found {len(np.unique(mask)) - 1} objects with {num_click} clicks")
+        # Log segmentation statistics
+        unique_labels, counts = np.unique(mask, return_counts=True)
+        for i, (label, count) in enumerate(zip(unique_labels, counts)):
+            if label > 0:  # Skip background
+                percentage = (count / len(mask)) * 100
+                logger.info(f"Object {label}: {count} points ({percentage:.2f}%)")
+
+        logger.info(
+            f"Inference complete: Found {len(unique_labels) - 1} objects using {num_click} clicks (avg {avg_clicks} per object)")
         return mask
 
     def visualize_results(self, mask: np.ndarray) -> None:
         """Visualize the segmentation results."""
+        logger.info("Visualizing segmentation results")
         colors = self.colors.copy()
 
         # Color each object with a unique color
@@ -419,10 +466,13 @@ class PointCloudInference:
             vis_pcd.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.005, max_nn=30))
 
         # Visualize
+        logger.info("Opening visualization window")
         o3d.visualization.draw_geometries([vis_pcd])
 
+    @timed
     def save_results(self, mask: np.ndarray, output_dir: str, prefix: str = "") -> str:
         """Save the segmentation results (colored mesh)."""
+        logger.info(f"Saving segmentation results to {output_dir}")
         os.makedirs(output_dir, exist_ok=True)
 
         # Get scene name from file if available
@@ -432,62 +482,68 @@ class PointCloudInference:
             prefix = scene_name
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{prefix}_mask_{timestamp}.npy"
-        mask_path = os.path.join(output_dir, filename)
 
-        np.save(mask_path, mask)
-        print(f"Saved mask to {mask_path}")
+        with StepTimer("Saving mask array"):
+            filename = f"{prefix}_mask_{timestamp}.npy"
+            mask_path = os.path.join(output_dir, filename)
 
-        # Create record file (similar to the format in the original code)
-        record_file = os.path.join(output_dir, f"{prefix}_record.csv")
-        with open(record_file, 'a') as f:
-            now = datetime.now()
-            num_obj = len(self.click_handler.click_idx.keys()) - 1
-            num_click = sum([len(c) for c in self.click_handler.click_idx.values()])
-            avg_clicks = round(num_click / max(num_obj, 1), 1)
+            np.save(mask_path, mask)
+            logger.info(f"Saved mask to {mask_path}")
 
-            # Calculate mean IoU if ground truth is available (optional)
-            sample_iou = 'NA'  # Placeholder for IoU if no ground truth available
+        with StepTimer("Recording segmentation data"):
+            # Create record file (similar to the format in the original code)
+            record_file = os.path.join(output_dir, f"{prefix}_record.csv")
+            with open(record_file, 'a') as f:
+                now = datetime.now()
+                num_obj = len(self.click_handler.click_idx.keys()) - 1
+                num_click = sum([len(c) for c in self.click_handler.click_idx.values()])
+                avg_clicks = round(num_click / max(num_obj, 1), 1)
 
-            line = now.strftime("%Y-%m-%d-%H-%M-%S") + '  ' + scene_name + '  NumObjects:' + str(
-                num_obj) + '  AvgNumClicks:' + str(avg_clicks) + '  mIoU:' + sample_iou + '\n'
-            f.write(line)
-            print(line)
+                # Calculate mean IoU if ground truth is available (optional)
+                sample_iou = 'NA'  # Placeholder for IoU if no ground truth available
 
-        # Save clicks as well
-        clicks_file = os.path.join(output_dir, f"{prefix}_clicks_{timestamp}.json")
-        self.click_handler.save_clicks_to_file(clicks_file)
-        print(f"Saved clicks to {clicks_file}")
+                line = now.strftime("%Y-%m-%d-%H-%M-%S") + '  ' + scene_name + '  NumObjects:' + str(
+                    num_obj) + '  AvgNumClicks:' + str(avg_clicks) + '  mIoU:' + sample_iou + '\n'
+                f.write(line)
+                logger.info(line.strip())
 
-        # Save colored point cloud
-        colors = self.colors.copy()
-        obj_ids = np.unique(mask)
-        for obj_id in obj_ids:
-            if obj_id != 0:  # Skip background
-                obj_mask = mask == obj_id
-                colors[obj_mask] = get_obj_color(obj_id, normalize=True)
+        with StepTimer("Saving clicks"):
+            # Save clicks as well
+            clicks_file = os.path.join(output_dir, f"{prefix}_clicks_{timestamp}.json")
+            self.click_handler.save_clicks_to_file(clicks_file)
+            logger.info(f"Saved clicks to {clicks_file}")
 
-        # Create colored point cloud for saving
-        if self.point_type == "pointcloud":
-            vis_pcd = o3d.geometry.PointCloud()
-            vis_pcd.points = o3d.utility.Vector3dVector(self.coords)
-            vis_pcd.colors = o3d.utility.Vector3dVector(colors)
-            colored_ply_file = os.path.join(output_dir, f"{prefix}_result_{timestamp}.ply")
-            o3d.io.write_point_cloud(colored_ply_file, vis_pcd)
-        else:  # Mesh
-            vis_mesh = o3d.geometry.TriangleMesh()
-            vis_mesh.vertices = o3d.utility.Vector3dVector(self.coords)
-            vis_mesh.vertex_colors = o3d.utility.Vector3dVector(colors)
-            # We would need to set the triangles as well but we don't have them from loading
-            # This is a simplified version
-            colored_ply_file = os.path.join(output_dir, f"{prefix}_result_{timestamp}.ply")
-            o3d.io.write_triangle_mesh(colored_ply_file, vis_mesh)
+        with StepTimer("Creating colored point cloud"):
+            # Save colored point cloud
+            colors = self.colors.copy()
+            obj_ids = np.unique(mask)
+            for obj_id in obj_ids:
+                if obj_id != 0:  # Skip background
+                    obj_mask = mask == obj_id
+                    colors[obj_mask] = get_obj_color(obj_id, normalize=True)
 
-        print(f"Saved colored {self.point_type} to {colored_ply_file}")
+            # Create colored point cloud for saving
+            if self.point_type == "pointcloud":
+                vis_pcd = o3d.geometry.PointCloud()
+                vis_pcd.points = o3d.utility.Vector3dVector(self.coords)
+                vis_pcd.colors = o3d.utility.Vector3dVector(colors)
+                colored_ply_file = os.path.join(output_dir, f"{prefix}_result_{timestamp}.ply")
+                o3d.io.write_point_cloud(colored_ply_file, vis_pcd)
+                logger.info(f"Saved colored point cloud to {colored_ply_file}")
+            else:  # Mesh
+                vis_mesh = o3d.geometry.TriangleMesh()
+                vis_mesh.vertices = o3d.utility.Vector3dVector(self.coords)
+                vis_mesh.vertex_colors = o3d.utility.Vector3dVector(colors)
+                # We would need to set the triangles as well but we don't have them from loading
+                # This is a simplified version
+                colored_ply_file = os.path.join(output_dir, f"{prefix}_result_{timestamp}.ply")
+                o3d.io.write_triangle_mesh(colored_ply_file, vis_mesh)
+                logger.info(f"Saved colored mesh to {colored_ply_file}")
 
         return colored_ply_file
 
 
+@timed
 def infer(
         point_cloud_path: Union[str, Path],
         clicks_file=None,
@@ -520,49 +576,61 @@ def infer(
         np.ndarray: The segmentation mask
     """
     # Initialize inference
-    print(f"Using device: {torch.device('cuda' if torch.cuda.is_available() else 'cpu')}")
-    inference = PointCloudInference(
-        pretraining_weights=pretraining_weights,
-        voxel_size=voxel_size
-    )
+    logger.info(f"Starting inference on: {point_cloud_path}")
+    logger.info(f"Using device: {torch.device('cuda' if torch.cuda.is_available() else 'cpu')}")
+
+    with StepTimer("Initializing inference"):
+        inference = PointCloudInference(
+            pretraining_weights=pretraining_weights,
+            voxel_size=voxel_size
+        )
 
     # Load point cloud
-    inference.load_point_cloud(point_cloud_path)
+    with StepTimer("Loading point cloud"):
+        inference.load_point_cloud(point_cloud_path)
 
     # Load clicks from file if provided
     if clicks_file:
-        inference.load_clicks(clicks_file)
+        with StepTimer("Loading clicks from file"):
+            inference.load_clicks(clicks_file)
 
     # Or add clicks manually if provided through arguments
     elif click_positions and click_obj_indices:
-        if len(click_positions) != len(click_obj_indices):
-            raise ValueError("Number of click positions and object indices must match")
+        with StepTimer("Adding manual clicks"):
+            if len(click_positions) != len(click_obj_indices):
+                raise ValueError("Number of click positions and object indices must match")
 
-        # Generate default object names if not provided
-        if not click_obj_names:
-            click_obj_names = []
-            for idx in click_obj_indices:
-                if idx == 0:
-                    click_obj_names.append("background")
-                else:
-                    click_obj_names.append(f"object_{idx}")
-        elif len(click_positions) != len(click_obj_names):
-            raise ValueError("If provided, number of object names must match click positions")
+            # Generate default object names if not provided
+            if not click_obj_names:
+                click_obj_names = []
+                for idx in click_obj_indices:
+                    if idx == 0:
+                        click_obj_names.append("background")
+                    else:
+                        click_obj_names.append(f"object_{idx}")
+            elif len(click_positions) != len(click_obj_names):
+                raise ValueError("If provided, number of object names must match click positions")
 
-        for pos, obj_idx, obj_name in zip(click_positions, click_obj_indices, click_obj_names):
-            inference.add_click(pos, obj_idx, obj_name, cube_size=cube_size)
+            for pos, obj_idx, obj_name in zip(click_positions, click_obj_indices, click_obj_names):
+                inference.add_click(pos, obj_idx, obj_name, cube_size=cube_size)
+
+            logger.info(f"Added {len(click_positions)} manual clicks")
 
     # Run inference if we have clicks
     if inference.click_handler.clicks:
-        mask = inference.run_inference()
-        result_path = inference.save_results(mask, output_dir)
+        with StepTimer("Running inference"):
+            mask = inference.run_inference()
+
+        with StepTimer("Saving results"):
+            result_path = inference.save_results(mask, output_dir)
 
         if visualize:
-            inference.visualize_results(mask)
+            with StepTimer("Visualizing results"):
+                inference.visualize_results(mask)
 
         return result_path, mask
     else:
-        print("No clicks provided. Please provide clicks via clicks_file or click_positions.")
+        logger.warning("No clicks provided. Please provide clicks via clicks_file or click_positions.")
         return None, None
 
 
