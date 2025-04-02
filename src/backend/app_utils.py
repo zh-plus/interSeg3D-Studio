@@ -1,0 +1,234 @@
+import json
+import os
+import zipfile
+
+import numpy as np
+import open3d as o3d
+
+
+class NumpyEncoder(json.JSONEncoder):
+    """Custom JSON encoder for numpy/torch types"""
+
+    def default(self, obj):
+        if isinstance(obj, (np.integer, np.int_)):
+            return int(obj)
+        if isinstance(obj, (np.floating, np.float_)):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        if hasattr(obj, 'item'):  # For torch tensors
+            return obj.item()
+        return super().default(obj)
+
+
+def create_colored_ply(coords, colors, mask, is_point_cloud, original_geometry_path, output_path, get_obj_color_func):
+    """
+    Creates a PLY file with uncolored scene (neutral gray) and colored objects
+
+    Args:
+        coords (np.ndarray): Point/vertex coordinates
+        colors (np.ndarray): Original point/vertex colors (not used, kept for reference)
+        mask (np.ndarray): Segmentation mask with object IDs
+        is_point_cloud (bool): Whether the geometry is a point cloud or mesh
+        original_geometry_path (str): Path to the original geometry file (for mesh triangles)
+        output_path (str): Path to save the output PLY file
+        get_obj_color_func (callable): Function to get object color based on ID
+
+    Returns:
+        str: Path to the saved PLY file
+    """
+    # Create a new color array with background as neutral gray and objects colored
+    new_colors = np.ones((len(coords), 3)) * 0.7  # Default scene color (light gray)
+
+    # Apply object colors based on mask
+    for obj_id in np.unique(mask):
+        if obj_id > 0:  # Skip background
+            obj_mask = mask == obj_id
+            obj_color = get_obj_color_func(obj_id, normalize=True)
+            new_colors[obj_mask] = obj_color
+
+    # Create a new geometry with these colors
+    if not is_point_cloud:
+        # It's a mesh
+        original_mesh = o3d.io.read_triangle_mesh(original_geometry_path)
+        new_geometry = o3d.geometry.TriangleMesh()
+        new_geometry.vertices = o3d.utility.Vector3dVector(coords)
+        new_geometry.vertex_colors = o3d.utility.Vector3dVector(new_colors)
+        new_geometry.triangles = original_mesh.triangles
+        new_geometry.compute_vertex_normals()
+        o3d.io.write_triangle_mesh(output_path, new_geometry)
+    else:
+        # It's a point cloud
+        new_geometry = o3d.geometry.PointCloud()
+        new_geometry.points = o3d.utility.Vector3dVector(coords)
+        new_geometry.colors = o3d.utility.Vector3dVector(new_colors)
+        o3d.io.write_point_cloud(output_path, new_geometry)
+
+    return output_path
+
+
+def generate_metadata_json(mask, new_ply_path, original_file_path, object_info, inference_obj, get_obj_color_func):
+    """
+    Generate JSON metadata for segmentation results
+
+    Args:
+        mask (np.ndarray): Segmentation mask with object IDs
+        new_ply_path (str): Path to the new PLY file
+        original_file_path (str): Path to the original file
+        object_info (list): List of object recognition results
+        inference_obj: Inference object with click handler
+        get_obj_color_func (callable): Function to get object color based on ID
+
+    Returns:
+        dict: Metadata dictionary
+    """
+    metadata = {
+        "objects": [],
+        "file_info": {
+            "ply_file": os.path.basename(new_ply_path),
+            "original_file": os.path.basename(original_file_path)
+        }
+    }
+
+    # Add object information from recognition results if available
+    if object_info:
+        for obj_info in object_info:
+            # Extract object ID (usually in the 'label' field or from the order)
+            obj_id = None
+            if 'obj_id' in obj_info:
+                obj_id = obj_info['obj_id']
+            else:
+                # Try to extract ID from label (e.g., "Object 1" -> 1)
+                label = obj_info.get('label', '')
+                import re
+                match = re.search(r'\d+', label)
+                if match:
+                    obj_id = int(match.group())
+
+            if obj_id is None:
+                # If ID extraction failed, use index+1 as ID
+                obj_id = len(metadata["objects"]) + 1
+
+            obj_color = get_obj_color_func(obj_id, normalize=True)
+
+            # Convert numpy values to Python native types for JSON serialization
+            if hasattr(obj_color, 'tolist'):
+                obj_color = obj_color.tolist()
+
+            obj_data = {
+                "id": int(obj_id),
+                "label": obj_info.get("label", f"Object {obj_id}"),
+                "description": obj_info.get("description", ""),
+                "color": obj_color,
+                "selected_views": obj_info.get("selected_views", [])
+            }
+
+            # Add cost information if available
+            if "cost" in obj_info:
+                obj_data["cost"] = float(obj_info["cost"])
+
+            metadata["objects"].append(obj_data)
+    else:
+        # If no object info, include basic information based on the mask
+        unique_obj_ids = np.unique(mask)
+        for obj_id in unique_obj_ids:
+            if obj_id > 0:  # Skip background
+                obj_color = get_obj_color_func(obj_id, normalize=True)
+                if hasattr(obj_color, 'tolist'):
+                    obj_color = obj_color.tolist()
+
+                metadata["objects"].append({
+                    "id": int(obj_id),
+                    "label": f"Object {obj_id}",
+                    "color": obj_color
+                })
+
+    # Add click information if available
+    if inference_obj and inference_obj.click_handler:
+        click_data = []
+        for click in inference_obj.click_handler.clicks:
+            # Convert click to dict and ensure values are JSON serializable
+            click_dict = {}
+            raw_dict = click.to_dict()
+
+            for k, v in raw_dict.items():
+                # Convert any numpy/torch values to Python native types
+                if hasattr(v, 'tolist'):
+                    click_dict[k] = v.tolist()
+                elif hasattr(v, 'item'):
+                    click_dict[k] = v.item()
+                else:
+                    click_dict[k] = v
+
+            click_data.append(click_dict)
+
+        metadata["click_data"] = click_data
+
+    # Count points per object from the mask
+    unique_values, counts = np.unique(mask, return_counts=True)
+    object_counts = {}
+    for i, val in enumerate(unique_values):
+        if val > 0:  # Skip background
+            object_counts[int(val)] = int(counts[i])
+
+    metadata["object_counts"] = object_counts
+
+    return metadata
+
+
+def create_zip_file(files_to_zip, output_zip_path):
+    """
+    Create a zip file from the provided files
+
+    Args:
+        files_to_zip (dict): Dictionary of {file_path: archive_name}
+        output_zip_path (str): Path to save the zip file
+
+    Returns:
+        str: Path to the created zip file
+    """
+    # Verify source files exist
+    for file_path in files_to_zip.keys():
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"Source file not found: {file_path}")
+        if not os.path.isfile(file_path):
+            raise ValueError(f"Source path is not a file: {file_path}")
+
+    # Ensure the parent directory exists
+    os.makedirs(os.path.dirname(output_zip_path), exist_ok=True)
+
+    # Create the zip file
+    with zipfile.ZipFile(output_zip_path, 'w') as zipf:
+        for file_path, arc_name in files_to_zip.items():
+            zipf.write(file_path, arcname=arc_name)
+
+    # Verify the zip file was created
+    if not os.path.exists(output_zip_path):
+        raise FileNotFoundError(f"Failed to create zip file at {output_zip_path}")
+
+    return output_zip_path
+
+
+def load_point_cloud_data(file_path):
+    """
+    Load point cloud data from a PLY file
+
+    Args:
+        file_path (str): Path to the PLY file
+
+    Returns:
+        tuple: (coords, colors, is_point_cloud)
+    """
+    pcd_type = o3d.io.read_file_geometry_type(file_path)
+    if pcd_type == o3d.io.FileGeometry.CONTAINS_TRIANGLES:
+        geometry = o3d.io.read_triangle_mesh(file_path)
+        coords = np.array(geometry.vertices)
+        colors = np.array(geometry.vertex_colors) if geometry.has_vertex_colors() else np.ones((len(coords), 3)) * 0.5
+        is_point_cloud = False
+    else:
+        geometry = o3d.io.read_point_cloud(file_path)
+        coords = np.array(geometry.points)
+        colors = np.array(geometry.colors) if geometry.has_colors() else np.ones((len(coords), 3)) * 0.5
+        is_point_cloud = True
+
+    return coords, colors, is_point_cloud

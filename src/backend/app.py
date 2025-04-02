@@ -8,12 +8,14 @@ import open3d as o3d
 import torch
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+import app_utils  # Import our custom utility functions
 # Import the inference module
 from inference import Click, ClickHandler, PointCloudInference
+from interactive_tool.utils import get_obj_color  # Import for object coloring
 from visual_obj_recognition import mask_obj_recognition
 
 # Create static directory if it doesn't exist
@@ -38,8 +40,9 @@ app.add_middleware(
 # Global state (in a real application, you might want to use a database)
 current_point_cloud = None
 current_point_cloud_path = None
-current_inference = None
+current_inference: PointCloudInference | None = None
 current_results = None
+current_object_info = None  # Store object recognition results
 
 
 class InferenceRequest(BaseModel):
@@ -178,7 +181,7 @@ async def run_inference(request: InferenceRequest):
         mask = current_inference.run_inference()
 
         # Save the results
-        result_path = current_inference.save_results(
+        colored_ply = current_inference.save_results(
             mask,
             output_dir="./outputs",
             prefix=f"web_session_{os.path.basename(os.path.splitext(current_point_cloud_path)[0])}"
@@ -187,7 +190,7 @@ async def run_inference(request: InferenceRequest):
         # Store the results for later download
         current_results = {
             "mask": mask,
-            "result_path": result_path
+            "result_path": colored_ply
         }
 
         # Prepare segmentation results for frontend
@@ -231,7 +234,7 @@ async def run_mask_obj_recognition(request: MaskObjDetectionRequest):
       - A list of JSON objects with keys "selected_views", "description", "label", and "cost",
         one for each unique object ID in the mask (excluding background).
     """
-    global current_point_cloud_path
+    global current_point_cloud_path, current_object_info
     if not current_point_cloud_path:
         return JSONResponse(
             status_code=400,
@@ -269,6 +272,9 @@ async def run_mask_obj_recognition(request: MaskObjDetectionRequest):
         with multiprocessing.Pool() as pool:
             result = pool.map(mask_obj_recognition_worker, work_args)
 
+        # Store the results for later use in download
+        current_object_info = result
+
         return JSONResponse(content={
             "message": "Mask object recognition completed successfully",
             "result": result
@@ -285,8 +291,12 @@ async def run_mask_obj_recognition(request: MaskObjDetectionRequest):
 @app.get("/api/download-results")
 async def download_results():
     """
-    Download the segmentation results as a PLY file
+    Download the segmentation results as a zip file containing:
+    1. A PLY file with uncolored scene and colored objects
+    2. A JSON file with object labels, descriptions, colors, and other metadata
     """
+    global current_results, current_object_info, current_inference, current_point_cloud_path, current_point_cloud
+
     if not current_results or not current_results.get("result_path"):
         return JSONResponse(
             status_code=400,
@@ -294,13 +304,126 @@ async def download_results():
         )
 
     try:
-        return FileResponse(
-            path=current_results["result_path"],
-            filename=os.path.basename(current_results["result_path"]),
-            media_type="application/octet-stream"
-        )
+        # Create a temporary directory for the zip files
+        import tempfile
+        import json
+        import shutil
+        import os.path
+
+        temp_dir = tempfile.mkdtemp()
+        try:
+            mask = current_results["mask"]
+
+            # Get point cloud data - either from cached data or load from file
+            if current_point_cloud:
+                coords = current_point_cloud["coords"]
+                colors = current_point_cloud["colors"]
+                is_point_cloud = current_point_cloud["is_point_cloud"]
+            else:
+                # Load point cloud data from file
+                coords, colors, is_point_cloud = app_utils.load_point_cloud_data(current_point_cloud_path)
+
+            # Create a PLY file with uncolored scene and colored objects
+            new_ply_path = os.path.join(temp_dir, "scene_with_colored_objects.ply")
+            app_utils.create_colored_ply(
+                coords=coords,
+                colors=colors,
+                mask=mask,
+                is_point_cloud=is_point_cloud,
+                original_geometry_path=current_point_cloud_path,
+                output_path=new_ply_path,
+                get_obj_color_func=get_obj_color
+            )
+
+            # Verify the PLY file was created
+            if not os.path.exists(new_ply_path):
+                raise FileNotFoundError(f"Failed to create PLY file at {new_ply_path}")
+            print(f"Successfully created PLY file: {new_ply_path}, size: {os.path.getsize(new_ply_path)} bytes")
+
+            # Generate metadata JSON
+            metadata = app_utils.generate_metadata_json(
+                mask=mask,
+                new_ply_path=new_ply_path,
+                original_file_path=current_point_cloud_path,
+                object_info=current_object_info,
+                inference_obj=current_inference,
+                get_obj_color_func=get_obj_color
+            )
+
+            # Write the JSON file
+            json_path = os.path.join(temp_dir, "metadata.json")
+            with open(json_path, 'w') as f:
+                json.dump(metadata, f, indent=2, cls=app_utils.NumpyEncoder)
+
+            # Verify the JSON file was created
+            if not os.path.exists(json_path):
+                raise FileNotFoundError(f"Failed to create JSON file at {json_path}")
+            print(f"Successfully created JSON file: {json_path}, size: {os.path.getsize(json_path)} bytes")
+
+            # Prepare for zip creation
+            zip_path = os.path.join(temp_dir, "segmentation_results.zip")
+            files_to_zip = {
+                new_ply_path: os.path.basename(new_ply_path),
+                json_path: "metadata.json"
+            }
+
+            # Create the zip file with explicit error handling
+            try:
+                app_utils.create_zip_file(files_to_zip, zip_path)
+
+                # Verify the zip file was created
+                if not os.path.exists(zip_path):
+                    raise FileNotFoundError(f"Zip file was not created at {zip_path}")
+                print(f"Successfully created ZIP file: {zip_path}, size: {os.path.getsize(zip_path)} bytes")
+            except Exception as zip_error:
+                print(f"Error creating zip file: {str(zip_error)}")
+                raise
+
+            # Stream the zip file as response
+            def iterfile():
+                with open(zip_path, 'rb') as f:
+                    chunk_size = 1024 * 1024  # 1MB chunks
+                    while chunk := f.read(chunk_size):
+                        yield chunk
+
+            file_size = os.path.getsize(zip_path)
+            headers = {
+                'Content-Disposition': f'attachment; filename="segmentation_results.zip"',
+                'Content-Type': 'application/zip',
+                'Content-Length': str(file_size)
+            }
+
+            return StreamingResponse(
+                iterfile(),
+                headers=headers,
+                media_type='application/zip'
+            )
+
+        finally:
+            # Clean up the temporary directory, but don't delete it until the streaming is complete
+            # We'll rely on the StreamingResponse to complete before the function exits
+            try:
+                # Instead of immediately deleting, we'll schedule deletion after a delay
+                # to ensure streaming completes
+                import threading
+
+                def delayed_cleanup():
+                    import time
+                    # Wait a bit to ensure streaming completes
+                    time.sleep(10)
+                    if os.path.exists(temp_dir):
+                        shutil.rmtree(temp_dir, ignore_errors=True)
+                        print(f"Cleaned up temporary directory {temp_dir}")
+
+                # Start cleanup in a separate thread
+                threading.Thread(target=delayed_cleanup).start()
+            except Exception as cleanup_error:
+                print(f"Warning: Error scheduling cleanup: {str(cleanup_error)}")
 
     except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Error downloading results: {str(e)}\n{error_details}")
         return JSONResponse(
             status_code=500,
             content={"message": f"Error downloading results: {str(e)}"}
@@ -313,4 +436,4 @@ if __name__ == "__main__":
 
     # Ensure output directory exists
     os.makedirs("./outputs", exist_ok=True)
-    uvicorn.run(app, host="0.0.0.0", port=9500)
+    uvicorn.run(app, host="0.0.0.0", port=9501)
