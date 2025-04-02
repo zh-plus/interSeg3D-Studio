@@ -422,7 +422,7 @@ class PointCloudInference:
         o3d.visualization.draw_geometries([vis_pcd])
 
     def save_results(self, mask: np.ndarray, output_dir: str, prefix: str = "") -> str:
-        """Save the segmentation results."""
+        """Save the segmentation results (colored mesh)."""
         os.makedirs(output_dir, exist_ok=True)
 
         # Get scene name from file if available
@@ -433,10 +433,10 @@ class PointCloudInference:
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{prefix}_mask_{timestamp}.npy"
-        filepath = os.path.join(output_dir, filename)
+        mask_path = os.path.join(output_dir, filename)
 
-        np.save(filepath, mask)
-        print(f"Saved mask to {filepath}")
+        np.save(mask_path, mask)
+        print(f"Saved mask to {mask_path}")
 
         # Create record file (similar to the format in the original code)
         record_file = os.path.join(output_dir, f"{prefix}_record.csv")
@@ -472,20 +472,20 @@ class PointCloudInference:
             vis_pcd = o3d.geometry.PointCloud()
             vis_pcd.points = o3d.utility.Vector3dVector(self.coords)
             vis_pcd.colors = o3d.utility.Vector3dVector(colors)
-            pcd_file = os.path.join(output_dir, f"{prefix}_result_{timestamp}.ply")
-            o3d.io.write_point_cloud(pcd_file, vis_pcd)
+            colored_ply_file = os.path.join(output_dir, f"{prefix}_result_{timestamp}.ply")
+            o3d.io.write_point_cloud(colored_ply_file, vis_pcd)
         else:  # Mesh
             vis_mesh = o3d.geometry.TriangleMesh()
             vis_mesh.vertices = o3d.utility.Vector3dVector(self.coords)
             vis_mesh.vertex_colors = o3d.utility.Vector3dVector(colors)
             # We would need to set the triangles as well but we don't have them from loading
             # This is a simplified version
-            pcd_file = os.path.join(output_dir, f"{prefix}_result_{timestamp}.ply")
-            o3d.io.write_triangle_mesh(pcd_file, vis_mesh)
+            colored_ply_file = os.path.join(output_dir, f"{prefix}_result_{timestamp}.ply")
+            o3d.io.write_triangle_mesh(colored_ply_file, vis_mesh)
 
-        print(f"Saved colored {self.point_type} to {pcd_file}")
+        print(f"Saved colored {self.point_type} to {colored_ply_file}")
 
-        return filepath
+        return colored_ply_file
 
 
 def infer(
@@ -516,7 +516,7 @@ def infer(
         voxel_size (float): Voxel size for point cloud quantization
 
     Returns:
-        str: Path to the saved mask file
+        str: Path to the saved colored ply file
         np.ndarray: The segmentation mask
     """
     # Initialize inference
