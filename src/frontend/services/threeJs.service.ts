@@ -40,6 +40,11 @@ class ThreeJsService {
             farPlane = 1000
         } = options;
 
+        // Detect Mac OS
+        const isMac = /Mac OS X/.test(window.navigator.userAgent);
+        // Detect Safari browser separately
+        const isSafari = /^((?!chrome|android).)*safari/i.test(window.navigator.userAgent);
+
         // Create scene
         this.context.scene = new THREE.Scene();
         this.context.scene.background = backgroundColor instanceof THREE.Color
@@ -53,20 +58,32 @@ class ThreeJsService {
         this.context.camera.position.copy(cameraPosition);
         this.context.camera.up.set(0, 0, 1);
 
-        // Create renderer
-        this.context.renderer = new THREE.WebGLRenderer({
-            antialias,
-            powerPreference: 'high-performance',
+        // Configure renderer options with OS and browser specific optimizations
+        const rendererOptions = {
+            antialias: isSafari ? false : antialias, // Disable antialiasing in Safari for performance
+            powerPreference: isMac ? 'high-performance' : 'default', // Mac-specific setting
             depth: true,
-            logarithmicDepthBuffer: true
-        });
+            // Disable logarithmic depth buffer in Safari for performance
+            logarithmicDepthBuffer: isSafari ? false : true,
+            // Use medium precision for Safari, high for others
+            precision: isSafari ? 'mediump' : 'highp',
+            // Minimize preserveDrawingBuffer overhead in Safari
+            preserveDrawingBuffer: false
+        };
+
+        // Create renderer with optimized settings
+        this.context.renderer = new THREE.WebGLRenderer(rendererOptions);
+
+        // Set pixel ratio with limits for Safari/Mac
+        const maxPixelRatio = isSafari ? 1.5 : 2.0;
+        this.context.renderer.setPixelRatio(Math.min(window.devicePixelRatio, maxPixelRatio));
         this.context.renderer.setSize(width, height);
-        this.context.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         container.appendChild(this.context.renderer.domElement);
 
         // Create raycaster
         this.context.raycaster = new THREE.Raycaster();
-        this.context.raycaster.params.Points = {threshold: 0.01};
+        // Adjust raycaster threshold based on browser
+        this.context.raycaster.params.Points = {threshold: isSafari ? 0.02 : 0.01};
 
         // Create controls
         this.context.controls = new OrbitControls(this.context.camera, this.context.renderer.domElement);
