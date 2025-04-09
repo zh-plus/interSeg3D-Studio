@@ -43,6 +43,17 @@
               <p class="mt-4">{{
                   apiStore.isAnalyzing ? 'Analyzing objects...' : apiStore.processingMessage ? 'Processing: ' + apiStore.processingMessage : 'Processing...'
                 }}</p>
+
+              <!-- Add this progress indicator -->
+              <v-progress-linear
+                  v-if="apiStore.processingProgress !== null"
+                  class="mt-2"
+                  color="primary"
+                  height="20"
+                  :value="apiStore.processingProgress"
+              >
+                {{ apiStore.processingProgress }}%
+              </v-progress-linear>
             </div>
           </v-col>
 
@@ -318,16 +329,12 @@
         @apply-all="applyAllAnalysisResults"
         @view-object="viewAnalyzedObject"
     />
-
-    <!-- Debug Panel -->
-    <DebugPanel/>
   </v-app>
 </template>
 
 <script lang="ts" setup>
 import {computed, onBeforeUnmount, onMounted, ref} from 'vue';
 import PointCloudViewer from './components/viewer/PointCloudViewer.vue';
-import DebugPanel from './components/DebugPanel.vue';
 import ObjectDescriptionCard from './components/viewer/ObjectDescriptionCard.vue';
 import ObjectAnalysisDialog from './components/viewer/ObjectAnalysisDialog.vue';
 import {getCssColorFromIndex} from './utils/color.util';
@@ -692,5 +699,27 @@ onBeforeUnmount(() => {
 
 .info-button:hover {
   opacity: 1;
+}
+
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  color: white;
+  padding: 2rem;
+}
+
+.v-progress-linear {
+  width: 300px;
+  border-radius: 4px;
+  overflow: hidden;
 }
 </style>
