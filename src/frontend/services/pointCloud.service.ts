@@ -127,18 +127,22 @@ class PointCloudService {
      * Apply segmentation data to point cloud colors
      * @param data Point cloud data
      * @param segmentation Segmentation data
-     * @returns Whether the operation succeeded
+     * @param onProgress Optional callback for progress updates
+     * @param onComplete Optional callback when processing is complete
      */
     public applySegmentation(
         data: PointCloudData,
-        segmentation: SegmentedPointCloud
-    ): boolean {
+        segmentation: SegmentedPointCloud,
+        onProgress?: (progress: number) => void,
+        onComplete?: () => void
+    ): void {
         PerformanceLoggerUtil.start('apply_segmentation');
 
         if (!data.geometry || !data.currentColors || !data.originalColors) {
             console.error('Missing required data for segmentation');
             PerformanceLoggerUtil.end('apply_segmentation');
-            return false;
+            if (onComplete) onComplete();
+            return;
         }
 
         // Validate segmentation data
@@ -146,59 +150,100 @@ class PointCloudService {
             segmentation.segmentation.length !== data.pointCount) {
             console.error(`Segmentation size mismatch: got ${segmentation.segmentation?.length || 0}, expected ${data.pointCount}`);
             PerformanceLoggerUtil.end('apply_segmentation');
-            return false;
+            if (onComplete) onComplete();
+            return;
+        }
+
+        // Count unique labels more efficiently with sampling
+        const uniqueLabels = new Set();
+        const sampleSize = Math.min(10000, segmentation.segmentation.length);
+        const step = Math.max(1, Math.floor(segmentation.segmentation.length / sampleSize));
+        for (let i = 0; i < segmentation.segmentation.length; i += step) {
+            uniqueLabels.add(segmentation.segmentation[i]);
         }
 
         console.log('Applying segmentation to point cloud:',
             segmentation.segmentation.length,
             'points,',
-            [...new Set(segmentation.segmentation)].length,
-            'unique labels');
+            uniqueLabels.size,
+            'unique labels (estimated)');
 
-        // Apply segmentation colors
-        for (let i = 0; i < data.pointCount; i++) {
-            const label = segmentation.segmentation[i];
-            const colorIndex = i * 3;
+        // Process in chunks to avoid blocking the main thread
+        const chunkSize = 100000; // Process 100k points at a time
+        let currentIndex = 0;
+        let lastRenderTime = 0;
 
-            if (label !== 0) {
-                // Object points get their object color
-                const color = getColorFromIndex(label);
+        const processNextChunk = () => {
+            const startTime = performance.now();
+            const endIndex = Math.min(currentIndex + chunkSize, data.pointCount);
 
-                data.currentColors[colorIndex] = color.r;
-                data.currentColors[colorIndex + 1] = color.g;
-                data.currentColors[colorIndex + 2] = color.b;
+            // Process this chunk
+            for (let i = currentIndex; i < endIndex; i++) {
+                const label = segmentation.segmentation[i];
+                const colorIndex = i * 3;
+
+                if (label !== 0) {
+                    // Object points get their object color
+                    const color = getColorFromIndex(label);
+
+                    data.currentColors[colorIndex] = color.r;
+                    data.currentColors[colorIndex + 1] = color.g;
+                    data.currentColors[colorIndex + 2] = color.b;
+                } else {
+                    // Background points get original colors
+                    data.currentColors[colorIndex] = data.originalColors[colorIndex];
+                    data.currentColors[colorIndex + 1] = data.originalColors[colorIndex + 1];
+                    data.currentColors[colorIndex + 2] = data.originalColors[colorIndex + 2];
+                }
+            }
+
+            // Update current index
+            currentIndex = endIndex;
+
+            // Calculate progress
+            const progress = currentIndex / data.pointCount;
+            if (onProgress) onProgress(progress);
+
+            // Update buffer occasionally to show progress (but not too often)
+            const now = Date.now();
+            if (now - lastRenderTime > 500 || currentIndex === data.pointCount) {  // Max ~2 renders per second
+                updateBuffer();
+                lastRenderTime = now;
+            }
+
+            // Log performance for debugging
+            const chunkTime = performance.now() - startTime;
+            if (currentIndex % (chunkSize * 10) === 0 || currentIndex === data.pointCount) {
+                console.log(`Processed ${currentIndex.toLocaleString()} / ${data.pointCount.toLocaleString()} points (${Math.round(progress * 100)}%) in ${chunkTime.toFixed(0)}ms`);
+            }
+
+            // Continue or finish
+            if (currentIndex < data.pointCount) {
+                // Schedule next chunk with a small delay to allow UI to update
+                setTimeout(processNextChunk, 0);
             } else {
-                // Background points get original colors
-                data.currentColors[colorIndex] = data.originalColors[colorIndex];
-                data.currentColors[colorIndex + 1] = data.originalColors[colorIndex + 1];
-                data.currentColors[colorIndex + 2] = data.originalColors[colorIndex + 2];
+                // Final update and cleanup
+                updateBuffer();
+                PerformanceLoggerUtil.end('apply_segmentation');
+                console.log('Segmentation application complete');
+                if (onComplete) onComplete();
             }
-        }
+        };
 
-        // Update the geometry - add more verbose logging
-        if (data.geometry.attributes.color) {
-            const colorAttribute = data.geometry.attributes.color as THREE.BufferAttribute;
-            colorAttribute.array.set(data.currentColors);
-            colorAttribute.needsUpdate = true;
+        // Helper to update the buffer
+        const updateBuffer = () => {
+            if (data.geometry && data.geometry.attributes.color) {
+                const colorAttribute = data.geometry.attributes.color as THREE.BufferAttribute;
+                colorAttribute.array.set(data.currentColors);
+                colorAttribute.needsUpdate = true;
 
-            // Add more detailed logging
-            console.log('Color attribute updated:',
-                colorAttribute.array.length,
-                'color components updated,',
-                'needsUpdate flag set');
-
-            // Check geometry references
-            const context = threeJsService.getContext();
-            if (context.pointGeometry) {
-                console.log('Checking geometry references:',
-                    'Service geometry:', data.geometry.uuid,
-                    'Context geometry:', context.pointGeometry.uuid,
-                    'References equal:', data.geometry === context.pointGeometry);
+                // Force a render update to show progress
+                threeJsService.renderScene();
             }
-        }
+        };
 
-        PerformanceLoggerUtil.end('apply_segmentation');
-        return true;
+        // Start processing
+        processNextChunk();
     }
 
     /**

@@ -18,6 +18,7 @@ export const useApiStore = defineStore('api', () => {
     const isAnalyzing = ref(false);
     const isDownloading = ref(false);
     const processingMessage = ref('');
+    const processingProgress = ref<number | null>(null);
     const operationLock = ref(false);
     const analysisResults = ref<MaskObjectRecognitionResult[]>([]);
 
@@ -119,6 +120,12 @@ export const useApiStore = defineStore('api', () => {
                 objectNames: uiStore.objects.map(obj => obj.name)
             };
 
+            console.log('Running inference with:', {
+                objectCount: Object.keys(clickData.clickPositions).length - 1, // Subtract background
+                clickCount: Object.values(clickData.clickPositions).flat().length,
+                cubeSize: uiStore.cubeSize
+            });
+
             // Call API
             const response = await apiService.runInference(request);
 
@@ -127,11 +134,24 @@ export const useApiStore = defineStore('api', () => {
                 throw new Error('Invalid response from server');
             }
 
-            // Apply segmentation
-            pointCloudStore.applySegmentation(response.data.segmentedPointCloud);
+            // Update message
+            processingMessage.value = 'Applying segmentation to point cloud';
+
+            // Apply segmentation asynchronously and wait for it to complete
+            await pointCloudStore.applySegmentation(response.data.segmentedPointCloud);
+
+            // Track progress from the point cloud store
+            const unwatch = pointCloudStore.$subscribe((mutation, state) => {
+                if (state.loadingProgress !== null) {
+                    processingProgress.value = state.loadingProgress;
+                }
+            });
 
             // Recreate markers to keep them visible
             annotationStore.recreateMarkers();
+
+            // Cleanup subscription
+            unwatch();
 
             return true;
         } catch (error: any) {
@@ -140,6 +160,7 @@ export const useApiStore = defineStore('api', () => {
         } finally {
             isProcessing.value = false;
             processingMessage.value = '';
+            processingProgress.value = null;
             operationLock.value = false;
         }
     };
@@ -266,7 +287,7 @@ export const useApiStore = defineStore('api', () => {
             const url = window.URL.createObjectURL(new Blob([response.data]));
             const link = document.createElement('a');
             link.href = url;
-            link.setAttribute('download', `segmentation_result_${Date.now()}.zip`);  // Changed extension to .zip
+            link.setAttribute('download', `segmentation_result_${Date.now()}.zip`);
             document.body.appendChild(link);
             link.click();
 
@@ -293,6 +314,7 @@ export const useApiStore = defineStore('api', () => {
         isAnalyzing,
         isDownloading,
         processingMessage,
+        processingProgress,
         operationLock,
         analysisResults,
 

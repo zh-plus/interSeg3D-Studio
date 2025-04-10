@@ -374,6 +374,62 @@ class ThreeJsService {
     }
 
     /**
+     * Properly dispose of Three.js objects and resources
+     * @param object The Three.js object to dispose
+     */
+    public disposeThreeJsObject(object: THREE.Object3D): void {
+        if (!object) return;
+
+        // Recursively dispose of all children
+        while (object.children.length > 0) {
+            this.disposeThreeJsObject(object.children[0]);
+            object.remove(object.children[0]);
+        }
+
+        // Dispose of geometry if present
+        if ((object as any).geometry) {
+            (object as any).geometry.dispose();
+        }
+
+        // Dispose of material(s) if present
+        if ((object as any).material) {
+            if (Array.isArray((object as any).material)) {
+                (object as any).material.forEach((material: THREE.Material) => {
+                    this.disposeMaterial(material);
+                });
+            } else {
+                this.disposeMaterial((object as any).material);
+            }
+        }
+
+        // Remove from parent if it has one
+        if (object.parent) {
+            object.parent.remove(object);
+        }
+    }
+
+    /**
+     * Dispose of a Three.js material and its textures
+     * @param material The material to dispose
+     */
+    private disposeMaterial(material: THREE.Material): void {
+        // Dispose of all textures
+        if ((material as THREE.MeshStandardMaterial).map) (material as THREE.MeshStandardMaterial).map?.dispose();
+        if ((material as THREE.MeshStandardMaterial).normalMap) (material as THREE.MeshStandardMaterial).normalMap?.dispose();
+        if ((material as THREE.MeshStandardMaterial).aoMap) (material as THREE.MeshStandardMaterial).aoMap?.dispose();
+        if ((material as THREE.MeshStandardMaterial).emissiveMap) (material as THREE.MeshStandardMaterial).emissiveMap?.dispose();
+        if ((material as THREE.MeshStandardMaterial).roughnessMap) (material as THREE.MeshStandardMaterial).roughnessMap?.dispose();
+        if ((material as THREE.MeshStandardMaterial).metalnessMap) (material as THREE.MeshStandardMaterial).metalnessMap?.dispose();
+        if ((material as THREE.MeshStandardMaterial).alphaMap) (material as THREE.MeshStandardMaterial).alphaMap?.dispose();
+        if ((material as THREE.MeshStandardMaterial).lightMap) (material as THREE.MeshStandardMaterial).lightMap?.dispose();
+        if ((material as THREE.MeshBasicMaterial).specularMap) (material as THREE.MeshBasicMaterial).specularMap?.dispose();
+        if ((material as THREE.MeshBasicMaterial).envMap) (material as THREE.MeshBasicMaterial).envMap?.dispose();
+
+        // Dispose of the material itself
+        material.dispose();
+    }
+
+    /**
      * Clean up Three.js resources
      */
     public cleanup(): void {
@@ -427,7 +483,7 @@ class ThreeJsService {
         this.context.isAnimating = false;
     }
 
-    // New helper method to properly dispose scene resources
+    // Helper method to properly dispose scene resources
     private disposeSceneResources(scene: THREE.Scene): void {
         // Process all scene objects to ensure proper disposal
         scene.traverse((object) => {
@@ -461,61 +517,6 @@ class ThreeJsService {
         }
     }
 
-    // Helper to dispose material and its textures
-    private disposeMaterial(material: THREE.Material): void {
-        // Helper function for common textures that exist on multiple material types
-        const disposeCommonTextures = (mat: THREE.Material & {
-            map?: THREE.Texture | null;
-            lightMap?: THREE.Texture | null;
-            aoMap?: THREE.Texture | null;
-            alphaMap?: THREE.Texture | null;
-            envMap?: THREE.Texture | null;
-        }) => {
-            if (mat.map) mat.map.dispose();
-            if (mat.lightMap) mat.lightMap.dispose();
-            if (mat.aoMap) mat.aoMap.dispose();
-            if (mat.alphaMap) mat.alphaMap.dispose();
-            if (mat.envMap) mat.envMap.dispose();
-        };
-
-        // Handle MeshBasicMaterial
-        if (material instanceof THREE.MeshBasicMaterial) {
-            disposeCommonTextures(material);
-            // BasicMaterial has no additional textures to dispose
-        }
-
-        // Handle MeshPhongMaterial
-        if (material instanceof THREE.MeshPhongMaterial) {
-            disposeCommonTextures(material);
-            // Dispose Phong-specific textures
-            if (material.emissiveMap) material.emissiveMap.dispose();
-            if (material.bumpMap) material.bumpMap.dispose();
-            if (material.normalMap) material.normalMap.dispose();
-            if (material.displacementMap) material.displacementMap.dispose();
-        }
-
-        // Handle MeshStandardMaterial
-        if (material instanceof THREE.MeshStandardMaterial) {
-            disposeCommonTextures(material);
-            // Dispose Standard-specific textures
-            if (material.emissiveMap) material.emissiveMap.dispose();
-            if (material.bumpMap) material.bumpMap.dispose();
-            if (material.normalMap) material.normalMap.dispose();
-            if (material.displacementMap) material.displacementMap.dispose();
-            if (material.roughnessMap) material.roughnessMap.dispose();
-            if (material.metalnessMap) material.metalnessMap.dispose();
-        }
-
-        // Handle PointsMaterial
-        if (material instanceof THREE.PointsMaterial) {
-            disposeCommonTextures(material);
-            // PointsMaterial has no additional textures to dispose
-        }
-
-        // Dispose the material itself
-        material.dispose();
-    }
-
     /**
      * Get the current Three.js context
      * @returns The Three.js context
@@ -543,6 +544,23 @@ class ThreeJsService {
             renderer.render(scene, camera);
         } catch (error) {
             console.error('Error rendering scene:', error);
+        }
+    }
+
+    /**
+     * Request a garbage collection sweep (for development only)
+     * This will only work in browsers with the --js-flags="--expose-gc" flag
+     */
+    public requestGarbageCollection(): void {
+        if (typeof window !== 'undefined' && (window as any).gc) {
+            console.log('Requesting garbage collection');
+            try {
+                (window as any).gc();
+            } catch (e) {
+                console.warn('Unable to force garbage collection', e);
+            }
+        } else {
+            console.log('Garbage collection not exposed. Run Chrome with --js-flags="--expose-gc" for testing.');
         }
     }
 }

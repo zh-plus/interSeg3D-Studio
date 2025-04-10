@@ -22,11 +22,6 @@ export const api = axios.create({
     withCredentials: false
 });
 
-// Log connectivity info in development
-if (import.meta.env.DEV) {
-    console.log(`API configured with ${USE_PROXY ? 'proxy to' : 'direct connection to'} ${BACKEND_URL}`);
-}
-
 // Helper function to extract meaningful error messages
 function extractErrorInfo(error: AxiosError): ApiErrorInfo {
     if (error.response) {
@@ -69,9 +64,6 @@ let isRetrying = false;
 // Add request/response interceptors for debugging and error handling
 api.interceptors.request.use(
     config => {
-        if (import.meta.env.DEV) {
-            console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`);
-        }
         return config;
     },
     error => {
@@ -124,8 +116,8 @@ class ApiService {
             return Promise.reject(new Error('Invalid file type. Only PLY files are supported.'));
         }
 
-        // Check file size (50MB max)
-        const MAX_SIZE_MB = 50;
+        // Check file size (500MB max)
+        const MAX_SIZE_MB = 500;
         if (file.size > MAX_SIZE_MB * 1024 * 1024) {
             return Promise.reject(new Error(`File too large. Maximum size is ${MAX_SIZE_MB}MB.`));
         }
