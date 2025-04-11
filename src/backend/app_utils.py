@@ -129,12 +129,12 @@ def generate_metadata_json(mask, new_ply_path, original_file_path, object_info, 
             if hasattr(obj_color, 'tolist'):
                 obj_color = obj_color.tolist()
 
+            # Create object data excluding selected_views
             obj_data = {
                 "id": int(obj_id),
                 "label": obj_info.get("label", f"Object {obj_id}"),
                 "description": obj_info.get("description", ""),
-                "color": obj_color,
-                "selected_views": obj_info.get("selected_views", [])
+                "color": obj_color
             }
 
             # Add cost information if available
