@@ -17,6 +17,7 @@ click-based segmentation algorithm and Gemini for 3D object recognition & descri
   ![seg-demo.gif](assets/seg-demo.gif)
 - **Object Analysis**: Automatically identify and describe objects in your scene
   ![Analyze](assets/Object%20Analyze.png)
+- **Metadata Loading**: Import previous annotations and object information from metadata files
 
 ## Installation
 
@@ -80,24 +81,37 @@ click-based segmentation algorithm and Gemini for 3D object recognition & descri
 
 ## Usage Guide
 
+### Interaction Modes
+
+The application has three main interaction modes:
+
+1. **Navigate Mode**: Rotate, pan, and zoom the view
+2. **Annotate Mode**: Mark points on objects or background
+3. **Select Mode**: Select and edit segmented objects
+
 ### Basic Workflow
 
 1. **Upload** a PLY file using the file upload panel
-2. **Create objects** by entering names and clicking "Create Object"
-3. **Select an object** from the list and switch to "Annotation Mode"
-4. **Mark points** on the object by clicking on the point cloud
-5. **Mark background** by switching to "Background" mode and clicking non-object areas
-6. **Run segmentation** by clicking the "RUN SEGMENTATION" button
-7. **Analyze objects** to automatically identify and describe them (remember to click `APPLY LABEL` or
+2. **Load metadata** to import previous annotations and object information (optional)
+3. **Create objects** by entering names and clicking "Create Object"
+4. **Select an object** from the list and switch to "Annotation Mode"
+5. **Mark points** on the object by clicking on the point cloud
+6. **Mark background** by switching to "Background" mode and clicking non-object areas
+7. **Run segmentation** by clicking the "RUN SEGMENTATION" button
+8. **(Optional) Analyze objects** to automatically identify and describe them (remember to click `APPLY LABEL` or
    `APPLY ALL RESULTS`)
-8. **Save results** to download the segmented point cloud
+9. **Switch to Select Mode** to click on segmented objects and edit their labels and descriptions
+10. **Save results** to download the segmented point cloud and metadata
 
 ### Keyboard Shortcuts
 
 - **A**: Toggle between navigation and annotation modes
+- **S**: Activate select mode
+- **Enter**: Run segmentation
+- **N**: Create a new object with default name "new obj"
 - **Ctrl+Z**: Undo the last click
 - **Shift+Ctrl+Z**: Redo an undone click
-- **N**: Create a new object with default name "new obj"
+- **Ctrl+S**: Save object information
 
 ### Mouse Controls
 
@@ -105,13 +119,13 @@ click-based segmentation algorithm and Gemini for 3D object recognition & descri
 - **Right-click + drag**: Pan the view
 - **Scroll wheel**: Zoom in/out
 - **Left-click** (Annotation Mode): Mark a point
+- **Left-click** (Select Mode): Select an object to edit its label and description
 
 ## How it works
 
 After segmenting the project interactively using clicks, all the objects are scanned from multiple angles and analyzed
 using the AI object recognition model. The model uses the LLM API to identify the objects and provide a description of
-the
-object. The description includes the object's name, color, and size.
+the object. The description includes the object's name, color, and size.
 
 For example, the object are indicated using convex hulls and the cameras are positioned at green spheres.
 
