@@ -3,7 +3,8 @@ import {
     ApiErrorInfo,
     InferenceRequest,
     InferenceResponse,
-    MaskObjectRecognitionResponse
+    MaskObjectRecognitionResponse,
+    UpdateObjectsRequest
 } from '@/types/apiService.types';
 
 // Configuration from environment variables
@@ -225,6 +226,30 @@ class ApiService {
             });
         } catch (error) {
             console.error('object recognition failed:', error);
+            if (axios.isAxiosError(error) && error.response) {
+                console.error('Response status:', error.response.status);
+                console.error('Response data:', error.response.data);
+            }
+            return Promise.reject(error);
+        }
+    }
+
+    /**
+     * Update object information (labels and descriptions) on the server
+     * @param objects Array of objects with id, name, and description
+     * @returns Promise with update response
+     */
+    async updateObjects(objects: { id: number; name: string; description?: string }[]): Promise<AxiosResponse<any>> {
+        console.log(`Updating information for ${objects.length} objects`);
+
+        try {
+            const request: UpdateObjectsRequest = {
+                objects: objects
+            };
+
+            return await api.post('/update-objects', request);
+        } catch (error) {
+            console.error('Update objects failed:', error);
             if (axios.isAxiosError(error) && error.response) {
                 console.error('Response status:', error.response.status);
                 console.error('Response data:', error.response.data);

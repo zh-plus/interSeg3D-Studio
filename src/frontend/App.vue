@@ -23,13 +23,20 @@
             <!-- Floating interaction mode toggle -->
             <div class="interaction-toggle">
               <v-btn-toggle v-model="interactionMode" dense mandatory>
-                <v-btn small value="navigate">
+                <v-btn small value="navigate" :color="interactionMode === 'navigate' ? 'primary' : undefined"
+                       title="Navigate Mode (Rotate/Pan/Zoom)">
                   <v-icon small>mdi-rotate-3d</v-icon>
                   Navigate
                 </v-btn>
-                <v-btn small value="annotate">
+                <v-btn small value="annotate" :color="interactionMode === 'annotate' ? 'warning' : undefined"
+                       title="Annotate Mode (Add Points)">
                   <v-icon small>mdi-cursor-default-click</v-icon>
                   Annotate
+                </v-btn>
+                <v-btn small value="select" :color="interactionMode === 'select' ? 'purple' : undefined"
+                       title="Select Mode (Edit Objects)">
+                  <v-icon small>mdi-cursor-pointer</v-icon>
+                  Select
                 </v-btn>
               </v-btn-toggle>
             </div>
@@ -81,7 +88,30 @@
                   }}
                 </v-chip>
 
+                <!-- Add SaveStatusIndicator -->
+                <SaveStatusIndicator
+                    :status="saveStatus"
+                    :last-saved="uiStore.lastSaveTime"
+                />
+
                 <v-spacer></v-spacer>
+
+                <v-tooltip bottom>
+                  <template v-slot:activator="{ on, attrs }">
+                    <v-btn
+                        :disabled="!uiStore.hasUnsavedChanges || apiStore.isProcessing || apiStore.operationLock"
+                        color="primary"
+                        icon
+                        v-bind="attrs"
+                        x-small
+                        @click="updateObjectInfo"
+                        v-on="on"
+                    >
+                      <v-icon small>mdi-content-save</v-icon>
+                    </v-btn>
+                  </template>
+                  <span>Save Object Information (Ctrl+S)</span>
+                </v-tooltip>
 
                 <v-tooltip bottom>
                   <template v-slot:activator="{ on, attrs }">
@@ -220,7 +250,7 @@
       </v-container>
     </v-main>
 
-    <!-- Instructions Dialog -->
+    <!-- Updated section for the Instructions Dialog in App.vue -->
     <v-dialog v-model="uiStore.showInstructions" max-width="600">
       <v-card>
         <v-card-title>Instructions</v-card-title>
@@ -246,6 +276,18 @@
                 <v-list-item-title>Annotation Mode</v-list-item-title>
                 <v-list-item-subtitle>Select "Annotate" to start marking points. Click on points to mark them as objects
                   or background.
+                </v-list-item-subtitle>
+              </v-list-item-content>
+            </v-list-item>
+
+            <v-list-item>
+              <v-list-item-icon>
+                <v-icon color="purple">mdi-cursor-pointer</v-icon>
+              </v-list-item-icon>
+              <v-list-item-content>
+                <v-list-item-title>Select Mode</v-list-item-title>
+                <v-list-item-subtitle>Switch to "Select" mode to click on segmented objects and edit their labels and
+                  descriptions.
                 </v-list-item-subtitle>
               </v-list-item-content>
             </v-list-item>
@@ -294,11 +336,15 @@
               </v-list-item-icon>
               <v-list-item-content>
                 <v-list-item-title>Keyboard Shortcuts</v-list-item-title>
-                <v-list-item-subtitle>Press "A" to toggle between navigation and annotation modes</v-list-item-subtitle>
-                <v-list-item-subtitle>Press "N" to create a new object with default name "new obj"
+                <v-list-item-subtitle>Press <kbd>A</kbd> to toggle between navigation and annotation modes
                 </v-list-item-subtitle>
-                <v-list-item-subtitle>Press "Ctrl+Z" to undo the last click</v-list-item-subtitle>
-                <v-list-item-subtitle>Press "Shift+Ctrl+Z" to redo an undone click</v-list-item-subtitle>
+                <v-list-item-subtitle>Press <kbd>S</kbd> to activate select mode</v-list-item-subtitle>
+                <v-list-item-subtitle>Press <kbd>Enter</kbd> to run segmentation</v-list-item-subtitle>
+                <v-list-item-subtitle>Press <kbd>N</kbd> to create a new object with default name "new obj"
+                </v-list-item-subtitle>
+                <v-list-item-subtitle>Press <kbd>Ctrl+Z</kbd> to undo the last click</v-list-item-subtitle>
+                <v-list-item-subtitle>Press <kbd>Shift+Ctrl+Z</kbd> to redo an undone click</v-list-item-subtitle>
+                <v-list-item-subtitle>Press <kbd>Ctrl+S</kbd> to save object information</v-list-item-subtitle>
               </v-list-item-content>
             </v-list-item>
           </v-list>
@@ -337,6 +383,7 @@ import {computed, onBeforeUnmount, onMounted, ref} from 'vue';
 import PointCloudViewer from './components/viewer/PointCloudViewer.vue';
 import ObjectDescriptionCard from './components/viewer/ObjectDescriptionCard.vue';
 import ObjectAnalysisDialog from './components/viewer/ObjectAnalysisDialog.vue';
+import SaveStatusIndicator from './components/viewer/SaveStatusIndicator.vue';
 import {getCssColorFromIndex} from './utils/color.util';
 
 // Import Pinia stores
@@ -385,6 +432,17 @@ const autoInfer = computed({
   get: () => uiStore.autoInfer,
   set: (value) => {
     uiStore.autoInfer = value;
+  }
+});
+
+// Computed property for save status
+const saveStatus = computed((): 'unsaved' | 'saving' | 'saved' => {
+  if (uiStore.isSaving) {
+    return 'saving';
+  } else if (uiStore.hasUnsavedChanges) {
+    return 'unsaved';
+  } else {
+    return 'saved';
   }
 });
 
@@ -506,10 +564,30 @@ async function analyzeObjects() {
 }
 
 /**
+ * Update object information on the server
+ */
+async function updateObjectInfo() {
+  if (uiStore.objects.length === 0 || !uiStore.hasUnsavedChanges) {
+    console.log('No objects to update or no changes');
+    return;
+  }
+
+  try {
+    // The startSaving and finishSaving calls are now handled in the apiStore
+    await apiStore.updateObjects();
+    // No need for alert - the status indicator will show success
+  } catch (error: any) {
+    // Only show alert for errors
+    alert(`Failed to update object information: ${error.message}`);
+  }
+}
+
+/**
  * Download results
  */
 async function downloadResults() {
   try {
+    // Note: apiStore.downloadResults now automatically calls updateObjects first
     await apiStore.downloadResults();
   } catch (error: any) {
     alert(error.message);
@@ -588,8 +666,10 @@ function viewAnalyzedObject(index: number) {
   }
 }
 
-// Handle keyboard shortcuts
+// Handle keyboard shortcuts - MODIFIED to address "A" key issue and add Ctrl+S
 function handleKeydown(e: KeyboardEvent) {
+  if (e.repeat) return;
+
   // Prevent handling if any input elements are focused
   if (e.target instanceof HTMLInputElement ||
       e.target instanceof HTMLTextAreaElement ||
@@ -597,22 +677,26 @@ function handleKeydown(e: KeyboardEvent) {
     return;
   }
 
-  // 'A' key to toggle between annotation and navigation modes
-  if (e.key === 'a' || e.key === 'A') {
-    uiStore.toggleInteractionMode();
-    console.log(`App.vue: Keyboard shortcut - Switched to ${uiStore.interactionMode} mode`);
-  }
-
   // 'N' key to create a new object with default name
   if (e.key === 'n' || e.key === 'N') {
+    e.preventDefault();
     uiStore.createNewObject("new obj");
     console.log(`App.vue: Keyboard shortcut - Created new object with default name`);
   }
+
+  // Ctrl+S to update objects on the server
+  if (e.ctrlKey && (e.key === 's' || e.key === 'S')) {
+    e.preventDefault(); // Prevent browser save dialog
+    updateObjectInfo();
+  }
+
+  // We're removing the "A" key handling from here since it's handled in PointCloudViewer.vue
+  // The "A" key toggle is now exclusively handled in PointCloudViewer.vue
 }
 
 // Set up keyboard event listeners
 onMounted(() => {
-  // Add global keyboard event listener
+  // Add global keyboard event listener - but don't handle the "A" key here
   window.addEventListener('keydown', handleKeydown);
   console.log('App.vue: Mounted and keyboard listeners added');
 });
@@ -721,5 +805,20 @@ onBeforeUnmount(() => {
   width: 300px;
   border-radius: 4px;
   overflow: hidden;
+}
+
+kbd {
+  background-color: #f7f7f7;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+  color: #333;
+  display: inline-block;
+  font-family: monospace;
+  font-size: 0.85em;
+  font-weight: 700;
+  line-height: 1;
+  padding: 2px 4px;
+  white-space: nowrap;
 }
 </style>

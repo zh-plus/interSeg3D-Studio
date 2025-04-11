@@ -17,10 +17,12 @@ export const useApiStore = defineStore('api', () => {
     const isProcessing = ref(false);
     const isAnalyzing = ref(false);
     const isDownloading = ref(false);
+    const isUpdatingObjects = ref(false);
     const processingMessage = ref('');
     const processingProgress = ref<number | null>(null);
     const operationLock = ref(false);
     const analysisResults = ref<MaskObjectRecognitionResult[]>([]);
+    const lastUpdateTime = ref<number | null>(null);
 
     // Computed
     const hasResults = computed(() => analysisResults.value.length > 0);
@@ -222,6 +224,46 @@ export const useApiStore = defineStore('api', () => {
         }
     };
 
+    /**
+     * Update object information on the server
+     * This sends the current object labels and descriptions to the backend
+     */
+    const updateObjects = async (): Promise<boolean> => {
+        if (operationLock.value || isProcessing.value) {
+            console.warn('Operation in progress. Please wait.');
+            return false;
+        }
+
+        // Don't update if there are no objects
+        if (uiStore.objects.length === 0) {
+            console.warn('No objects to update');
+            return false;
+        }
+
+        // Update UI save status
+        uiStore.startSaving();
+        isUpdatingObjects.value = true;
+        operationLock.value = true;
+
+        try {
+            const response = await apiService.updateObjects(uiStore.objects);
+            console.log('Objects updated successfully:', response.data);
+            lastUpdateTime.value = Date.now();
+
+            // Update UI save status on success
+            uiStore.finishSaving(true);
+            return true;
+        } catch (error: any) {
+            // Update UI save status on failure
+            uiStore.finishSaving(false);
+            const errorMessage = handleApiError(error, 'Error updating objects');
+            throw new Error(errorMessage);
+        } finally {
+            isUpdatingObjects.value = false;
+            operationLock.value = false;
+        }
+    };
+
     const applyAnalysisLabel = (data: { label: string, index: number }): boolean => {
         const result = analysisResults.value[data.index];
 
@@ -278,6 +320,14 @@ export const useApiStore = defineStore('api', () => {
         // Prevent concurrent operations
         if (operationLock.value || isProcessing.value) return false;
 
+        // First update objects to ensure backend has latest information
+        try {
+            await updateObjects();
+        } catch (error) {
+            console.warn('Failed to update objects before download:', error);
+            // Continue with download even if update fails
+        }
+
         isDownloading.value = true;
         operationLock.value = true;
 
@@ -313,10 +363,12 @@ export const useApiStore = defineStore('api', () => {
         isProcessing,
         isAnalyzing,
         isDownloading,
+        isUpdatingObjects,
         processingMessage,
         processingProgress,
         operationLock,
         analysisResults,
+        lastUpdateTime,
 
         // Computed
         hasResults,
@@ -326,6 +378,7 @@ export const useApiStore = defineStore('api', () => {
         uploadPointCloud,
         runSegmentation,
         analyzeObjects,
+        updateObjects,
         applyAnalysisLabel,
         applyAllAnalysisResults,
         downloadResults,

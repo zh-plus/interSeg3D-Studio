@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-export type InteractionMode = 'navigate' | 'annotate';
+export type InteractionMode = 'navigate' | 'annotate' | 'select';
 export type ClickMode = 'object' | 'background';
 
 export interface ClickPoint {

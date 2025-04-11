@@ -1,3 +1,5 @@
+// The file content remains largely the same, we only need to update the keyboard event handler
+
 <template>
   <div class="point-cloud-viewer">
     <!-- Use the extracted viewport component -->
@@ -39,6 +41,15 @@
         {{ undoRedoNotificationText }}
       </div>
     </ViewportComponent>
+
+    <!-- Object Edit Panel (outside ViewportComponent to avoid z-index issues) -->
+    <ObjectEditPanel
+        v-if="showObjectEditPanel"
+        :selected-object="selectedObjectForEdit"
+        :position="editPanelPosition"
+        @close="showObjectEditPanel = false"
+        @save="saveObjectChanges"
+    />
   </div>
 </template>
 
@@ -52,12 +63,13 @@ import ViewportComponent from './ViewportComponent.vue';
 import LoadingOverlay from './LoadingOverlay.vue';
 import ModeIndicator from './ModeIndicator.vue';
 import SelectionInfo from './SelectionInfo.vue';
+import ObjectEditPanel from './ObjectEditPanel.vue';
 
 // Composables
 import {useRaycasting} from '@/composables/useRaycasting';
 
 // Import Pinia stores
-import {useAnnotationStore, usePointCloudStore, useUiStore} from '@/stores';
+import {useAnnotationStore, useApiStore, usePointCloudStore, useUiStore} from '@/stores';
 
 // Define emits
 const emit = defineEmits([
@@ -72,6 +84,7 @@ const emit = defineEmits([
 const pointCloudStore = usePointCloudStore();
 const annotationStore = useAnnotationStore();
 const uiStore = useUiStore();
+const apiStore = useApiStore();
 
 // Component references
 const viewportComponent = ref<InstanceType<typeof ViewportComponent> | null>(null);
@@ -83,6 +96,11 @@ const showDebug = ref(import.meta.env.DEV || false);
 const isSelecting = ref(false);
 const isDragging = ref(false);
 const startMousePosition = ref<{ x: number, y: number } | null>(null);
+const editPanelPosition = ref<{ x: number, y: number }>({x: 0, y: 0});
+
+// Object edit panel state
+const showObjectEditPanel = ref(false);
+const selectedObjectForEdit = ref(null);
 
 // Undo/Redo notification
 const showUndoRedoNotification = ref(false);
@@ -130,6 +148,18 @@ const showNotification = (text: string): void => {
 };
 
 /**
+ * Save object changes
+ */
+const saveObjectChanges = (updatedObject: any): void => {
+  uiStore.updateObjectInfo(updatedObject.id, {
+    name: updatedObject.name,
+    description: updatedObject.description
+  });
+
+  showNotification(`Updated object: ${updatedObject.name}`);
+};
+
+/**
  * Handle scene ready event
  */
 const handleSceneReady = (context: any): void => {
@@ -151,11 +181,107 @@ const handleViewportResize = ({width, height}: { width: number, height: number }
 };
 
 /**
+ * Run segmentation
+ */
+const runSegmentation = async (): Promise<void> => {
+  if (!apiStore.hasClickData || apiStore.isProcessing || apiStore.operationLock) {
+    return;
+  }
+
+  try {
+    showNotification('Running segmentation...');
+    await apiStore.runSegmentation();
+    showNotification('Segmentation complete!');
+  } catch (error: any) {
+    console.error('Error running segmentation:', error);
+    showNotification(`Error: ${error.message}`);
+  }
+};
+
+/**
  * Handle render errors
  */
 const handleRenderError = (error: any): void => {
   console.error('Render error:', error);
   emit('error', `Rendering error: ${error.message || 'Unknown error'}`);
+};
+
+/**
+ * Select an object at the clicked position
+ */
+const selectObject = (event: MouseEvent): void => {
+  console.log('selectObject called in SELECT mode');
+
+  if (!pointCloudStore.segmentedPointCloud || !pointCloudStore.pointCloudData.positions) {
+    console.log('No segmented point cloud or positions available');
+    return;
+  }
+
+  // Update mouse position for raycasting
+  const container = viewportComponent.value?.getContainer();
+  if (!container) {
+    console.log('No container reference available');
+    return;
+  }
+
+  const rect = container.getBoundingClientRect();
+  updateMousePosition(event.clientX, event.clientY, rect);
+
+  // Perform raycasting
+  const raycastResult = tryProgressiveRaycast();
+  if (!raycastResult || !raycastResult.point) {
+    console.log('Raycasting failed to find intersection');
+    return;
+  }
+
+  // Find the nearest point to the raycast hit
+  const nearestPoint = findNearestPoint(raycastResult.point);
+  if (!nearestPoint || nearestPoint.index === undefined) {
+    console.log('No nearest point found');
+    return;
+  }
+
+  // Get the object ID from the segmentation mask
+  const segmentation = pointCloudStore.segmentedPointCloud.segmentation;
+  const objId = segmentation[nearestPoint.index];
+  console.log('Found object ID:', objId);
+
+  // Only proceed if we clicked on an actual object (not background)
+  if (objId <= 0) {
+    console.log('Clicked on background (objId <= 0)');
+    return;
+  }
+
+  // Find the object in the UI store
+  const selectedObject = uiStore.objects.find(obj => obj.id === objId);
+  if (!selectedObject) {
+    console.log('No matching object found in UI store');
+    return;
+  }
+
+  console.log('Selected object for edit:', selectedObject);
+
+  // Set up the edit panel
+  selectedObjectForEdit.value = selectedObject;
+
+  // Position panel near cursor - using clientX/Y since panel is a direct child of point-cloud-viewer
+  editPanelPosition.value = {
+    x: Math.min(Math.max(event.clientX, 160), window.innerWidth - 160),
+    y: Math.min(Math.max(event.clientY, 150), window.innerHeight - 150)
+  };
+
+  console.log('Edit panel position:', editPanelPosition.value);
+  showObjectEditPanel.value = true;
+  console.log('showObjectEditPanel set to true');
+
+  // Show notification about the selected object
+  showNotification(`Selected object: ${selectedObject.name}`);
+
+  // Also highlight the object in the right panel list
+  const objIndex = uiStore.objects.findIndex(obj => obj.id === objId);
+  if (objIndex !== -1) {
+    uiStore.selectedObjectIndex = objIndex;
+  }
 };
 
 /**
@@ -169,7 +295,8 @@ const onMouseDown = (event: MouseEvent): void => {
   if (event.button === 2) {
     // Right-click: temporarily enable controls for panning
     event.preventDefault();
-    if (uiStore.interactionMode === 'annotate' && viewportComponent.value?.getContext()?.controls) {
+    if ((uiStore.interactionMode === 'annotate' || uiStore.interactionMode === 'select') &&
+        viewportComponent.value?.getContext()?.controls) {
       const controls = viewportComponent.value.getContext()?.controls;
       if (controls) {
         controls.enabled = true;
@@ -184,9 +311,11 @@ const onMouseDown = (event: MouseEvent): void => {
     return;
   }
 
-  if (event.button === 0 && uiStore.interactionMode === 'annotate') {
-    isSelecting.value = true;
-    event.preventDefault();
+  if (event.button === 0) {
+    if (uiStore.interactionMode === 'annotate') {
+      isSelecting.value = true;
+      event.preventDefault();
+    }
   }
 };
 
@@ -208,6 +337,8 @@ const onMouseMove = (event: MouseEvent): void => {
  * Handle mouse up event
  */
 const onMouseUp = (event: MouseEvent): void => {
+  console.log('Mouse up event, button:', event.button, 'mode:', uiStore.interactionMode);
+
   const wasDragging = isDragging.value;
   isDragging.value = false;
   startMousePosition.value = null;
@@ -220,7 +351,8 @@ const onMouseUp = (event: MouseEvent): void => {
 
   if (event.button === 2) {
     // Right-click: restore controls state
-    if (uiStore.interactionMode === 'annotate' && viewportComponent.value?.getContext()?.controls) {
+    if ((uiStore.interactionMode === 'annotate' || uiStore.interactionMode === 'select') &&
+        viewportComponent.value?.getContext()?.controls) {
       const controls = viewportComponent.value.getContext()?.controls;
       if (controls) {
         controls.enabled = false;
@@ -230,8 +362,17 @@ const onMouseUp = (event: MouseEvent): void => {
     return;
   }
 
-  if (uiStore.interactionMode === 'annotate' && isSelecting.value && !wasDragging) {
-    handleAnnotationClick(event);
+  // LEFT BUTTON CLICK
+  if (event.button === 0 && !wasDragging) {
+    if (uiStore.interactionMode === 'select') {
+      // In select mode, handle object selection
+      console.log('In SELECT mode, handling object selection');
+      selectObject(event);
+    } else if (uiStore.interactionMode === 'annotate' && isSelecting.value) {
+      // In annotate mode, handle point annotation
+      console.log('In ANNOTATE mode, handling annotation');
+      handleAnnotationClick(event);
+    }
   }
 
   isSelecting.value = false;
@@ -304,7 +445,8 @@ const handleAnnotationClick = (event: MouseEvent): void => {
  * Handle wheel event for zooming in annotation mode
  */
 const onWheel = (event: WheelEvent): void => {
-  if (uiStore.interactionMode === 'annotate' && viewportComponent.value?.getContext()?.camera) {
+  if ((uiStore.interactionMode === 'annotate' || uiStore.interactionMode === 'select') &&
+      viewportComponent.value?.getContext()?.camera) {
     event.preventDefault();
 
     const context = viewportComponent.value.getContext();
@@ -395,6 +537,62 @@ const forceRenderUpdate = () => {
   }
 };
 
+// Handle keyboard events directly (modified to fix the "A" key issue)
+const handleKeyboardShortcuts = (e: KeyboardEvent): void => {
+  // Prevent handling if any input elements are focused
+  if (e.target instanceof HTMLInputElement ||
+      e.target instanceof HTMLTextAreaElement ||
+      e.target instanceof HTMLSelectElement) {
+    return;
+  }
+
+  // Ctrl+Z for undo
+  if (e.ctrlKey && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
+    if (annotationStore.canUndo) {
+      e.preventDefault();
+      e.stopPropagation(); // Stop event propagation
+      performUndo();
+    }
+  }
+
+  // Shift+Ctrl+Z for redo
+  if (e.ctrlKey && e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
+    if (annotationStore.canRedo) {
+      e.preventDefault();
+      e.stopPropagation(); // Stop event propagation
+      performRedo();
+    }
+  }
+
+  // A key to toggle between navigate and annotate modes
+  if (e.key === 'a' || e.key === 'A') {
+    e.preventDefault();
+    e.stopPropagation(); // Stop event propagation to prevent App.vue from handling it again
+    // Toggle only between navigate and annotate
+    const newMode = uiStore.isNavigateMode ? 'annotate' : 'navigate';
+    uiStore.setInteractionMode(newMode);
+    showNotification(`Switched to ${newMode.toUpperCase()} mode`);
+  }
+
+  // S key to activate select mode
+  if (e.key === 's' || e.key === 'S') {
+    e.preventDefault();
+    e.stopPropagation(); // Stop event propagation
+    uiStore.setInteractionMode('select');
+    showNotification('Switched to SELECT mode');
+  }
+
+  // Enter key to run segmentation
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    e.stopPropagation(); // Stop event propagation
+    // Only run if we have click data and we're not already processing
+    if (apiStore.hasClickData && !apiStore.isProcessing && !apiStore.operationLock) {
+      runSegmentation();
+    }
+  }
+};
+
 // Set up event handlers
 onMounted(() => {
   const container = viewportComponent.value?.getContainer();
@@ -406,33 +604,8 @@ onMounted(() => {
   container.addEventListener('mouseup', onMouseUp);
   container.addEventListener('wheel', onWheel, {passive: false});
 
-  // Add keyboard event listener for undo/redo
-  window.addEventListener('keydown', (e: KeyboardEvent) => {
-    // Prevent handling if any input elements are focused
-    if (e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement ||
-        e.target instanceof HTMLSelectElement) {
-      return;
-    }
-
-    // Ctrl+Z for undo
-    if (e.ctrlKey && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
-      if (annotationStore.canUndo) {
-        e.preventDefault();
-        e.stopPropagation(); // Stop event propagation
-        performUndo();
-      }
-    }
-
-    // Shift+Ctrl+Z for redo
-    if (e.ctrlKey && e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
-      if (annotationStore.canRedo) {
-        e.preventDefault();
-        e.stopPropagation(); // Stop event propagation
-        performRedo();
-      }
-    }
-  });
+  // Add keyboard event listener for shortcuts
+  window.addEventListener('keydown', handleKeyboardShortcuts);
 
   console.log('PointCloudViewer: Mounted with mode', uiStore.interactionMode);
 });
@@ -440,27 +613,22 @@ onMounted(() => {
 // Clean up event handlers
 onBeforeUnmount(() => {
   const container = viewportComponent.value?.getContainer();
-  if (!container) return;
-
-  // Remove event listeners
-  container.removeEventListener('mousedown', onMouseDown);
-  container.removeEventListener('mousemove', onMouseMove);
-  container.removeEventListener('mouseup', onMouseUp);
-  container.removeEventListener('wheel', onWheel);
+  if (container) {
+    // Remove event listeners
+    container.removeEventListener('mousedown', onMouseDown);
+    container.removeEventListener('mousemove', onMouseMove);
+    container.removeEventListener('mouseup', onMouseUp);
+    container.removeEventListener('wheel', onWheel);
+  }
 
   // Remove keyboard event listener
-  window.removeEventListener('keydown', handleKeydown);
+  window.removeEventListener('keydown', handleKeyboardShortcuts);
 
   // Clear notification timer
   if (undoRedoNotificationTimer.value) {
     window.clearTimeout(undoRedoNotificationTimer.value);
   }
 });
-
-// Method to handle keyboard events
-function handleKeydown(e: KeyboardEvent): void {
-  // Implementation moved to the inline event listener above
-}
 
 // Expose methods to parent
 defineExpose({
