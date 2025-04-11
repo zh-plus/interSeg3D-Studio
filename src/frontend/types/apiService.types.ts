@@ -44,3 +44,17 @@ export interface ApiErrorInfo {
     data?: any;
     isNetworkError: boolean;
 }
+
+// New interface for updating objects
+export interface UpdateObjectsRequest {
+    objects: Array<{
+        id: number;
+        name: string;
+        description?: string;
+    }>;
+}
+
+export interface UpdateObjectsResponse {
+    message: string;
+    updated_count: number;
+}

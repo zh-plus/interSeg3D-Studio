@@ -3,7 +3,7 @@
 /data
 outputs
 .idea
-
+src/frontend/.env
 
 /node_modules
 npm-debug.log*

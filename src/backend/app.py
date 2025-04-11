@@ -1,22 +1,20 @@
+import app_utils  # Import our custom utility functions
+import numpy as np
+import open3d as o3d
 import os
 import shutil
 import tempfile
-from typing import Dict, List, Any
-
-import numpy as np
-import open3d as o3d
 import torch
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
-
-import app_utils  # Import our custom utility functions
 # Import the inference module
 from inference import Click, ClickHandler, PointCloudInference
 from interactive_tool.utils import get_obj_color  # Import for object coloring
 from logger import logger, StepTimer, timed
+from pydantic import BaseModel
+from typing import Dict, List, Any
 from visual_obj_recognition import mask_obj_recognition
 
 # Create static directory if it doesn't exist
@@ -55,6 +53,68 @@ class InferenceRequest(BaseModel):
 class MaskObjDetectionRequest(BaseModel):
     # "mask" is a list of integers where 0 is background, 1 is first object, 2 is second object, etc.
     mask: list
+
+
+# New class for updating object information
+class UpdateObjectsRequest(BaseModel):
+    objects: List[Dict[str, Any]]
+
+
+# New endpoint to update object information
+@app.post("/api/update-objects")
+async def update_objects(request: UpdateObjectsRequest):
+    """
+    Update object information (labels, descriptions) for the current session.
+
+    The request body should contain a list of objects with id, name, and description fields.
+    """
+    global current_object_info
+
+    if not current_object_info:
+        current_object_info = []
+
+    # Create a mapping of existing object information by ID
+    obj_info_map = {}
+    for obj in current_object_info:
+        if 'obj_id' in obj:
+            obj_info_map[obj['obj_id']] = obj
+
+    # Update the objects with new information
+    updated_objects = []
+    for obj in request.objects:
+        if 'id' not in obj:
+            continue
+
+        obj_id = obj['id']
+
+        # If this object exists in our current info, update it
+        if obj_id in obj_info_map:
+            existing_obj = obj_info_map[obj_id]
+            # Update name and description
+            if 'name' in obj:
+                existing_obj['label'] = obj['name']
+            if 'description' in obj:
+                existing_obj['description'] = obj['description']
+            updated_objects.append(existing_obj)
+        else:
+            # This is a new object, add it with minimal information
+            new_obj = {
+                'obj_id': obj_id,
+                'label': obj.get('name', f"Object {obj_id}"),
+                'description': obj.get('description', ''),
+                'selected_views': []
+            }
+            updated_objects.append(new_obj)
+
+    # Replace the current object info with our updated version
+    current_object_info = updated_objects
+
+    logger.info(f"Updated information for {len(updated_objects)} objects")
+
+    return JSONResponse(content={
+        "message": f"Successfully updated information for {len(updated_objects)} objects",
+        "updated_count": len(updated_objects)
+    })
 
 
 @app.post("/api/upload")

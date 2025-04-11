@@ -15,7 +15,7 @@ const props = defineProps({
   mode: {
     type: String as () => InteractionMode,
     required: true,
-    validator: (value: string) => ['navigate', 'annotate'].includes(value)
+    validator: (value: string) => ['navigate', 'annotate', 'select'].includes(value)
   },
   clickMode: {
     type: String,
@@ -27,6 +27,8 @@ const props = defineProps({
 const displayText = computed(() => {
   if (props.mode === 'navigate') {
     return 'NAVIGATE MODE';
+  } else if (props.mode === 'select') {
+    return 'SELECT MODE';
   } else {
     return props.clickMode
         ? `ANNOTATE MODE: ${props.clickMode.toUpperCase()}`
@@ -56,6 +58,11 @@ const displayText = computed(() => {
 
 .annotate {
   background-color: #FF8F00;
+  color: white;
+}
+
+.select {
+  background-color: #7B1FA2;
   color: white;
 }
 </style>
