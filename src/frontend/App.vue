@@ -76,6 +76,14 @@
                     prepend-icon="mdi-cloud-upload"
                     @change="handleFileUpload"
                 ></v-file-input>
+
+                <v-file-input
+                    :disabled="!pointCloudStore.hasPointCloud || apiStore.isProcessing || apiStore.operationLock"
+                    accept=".json"
+                    label="Load Metadata (.json)"
+                    prepend-icon="mdi-file-document-outline"
+                    @change="handleMetadataLoad"
+                ></v-file-input>
               </v-card-text>
             </v-card>
 
@@ -517,6 +525,95 @@ async function handleFileUpload(fileEvent: Event | File) {
 }
 
 /**
+ * Handle metadata file loading
+ */
+async function handleMetadataLoad(fileEvent: Event | File) {
+  let file: File | null = null;
+
+  // Check if the input is an event or a direct file
+  if (fileEvent instanceof Event) {
+    const input = fileEvent.target as HTMLInputElement;
+    if (input.files && input.files.length > 0) {
+      file = input.files[0];
+    }
+  } else if (fileEvent instanceof File) {
+    file = fileEvent;
+  }
+
+  if (!file) {
+    console.error('No file selected');
+    return;
+  }
+
+  try {
+    // Read the file contents
+    const fileContent = await file.text();
+    const metadata = JSON.parse(fileContent);
+
+    // Check if the file has the expected structure
+    if (!metadata.objects || !Array.isArray(metadata.objects)) {
+      alert('Invalid metadata file format: missing objects array');
+      return;
+    }
+
+    // Clear existing objects and clicks
+    uiStore.reset();
+    annotationStore.reset();
+
+    // Create objects from metadata
+    for (const objData of metadata.objects) {
+      if (typeof objData.id !== 'number' || !objData.label) {
+        console.warn('Skipping invalid object entry:', objData);
+        continue;
+      }
+
+      const newObj = uiStore.createNewObject(objData.label);
+      if (newObj && objData.description) {
+        uiStore.updateObjectInfo(newObj.id, {description: objData.description});
+      }
+    }
+
+    // Create clicks from metadata if available
+    if (metadata.click_data && Array.isArray(metadata.click_data)) {
+      for (const clickData of metadata.click_data) {
+        // Check if click has required fields
+        if (!clickData.position || typeof clickData.obj_idx !== 'number') {
+          console.warn('Skipping invalid click entry:', clickData);
+          continue;
+        }
+
+        const position = clickData.position;
+        const objectIdx = clickData.obj_idx;
+
+        // Add click point
+        const clickPoint = annotationStore.addClickPoint(
+            position,
+            objectIdx,
+            clickData.id // Use id if available
+        );
+
+        // Create marker for this click
+        const markerId = annotationStore.createMarkerForClick(
+            position,
+            objectIdx,
+            clickData.time_idx || clickPoint.timeIdx || 0
+        );
+
+        // Apply selection if it's an object (not background)
+        if (objectIdx !== 0) {
+          annotationStore.applySelection(position, objectIdx);
+        }
+      }
+    }
+
+    showNotification('Metadata loaded successfully!');
+  } catch (error: any) {
+    alert(`Error loading metadata: ${error.message}`);
+    console.error('Error loading metadata:', error);
+  }
+}
+
+/**
  * Handle point cloud loaded event
  */
 function handlePointCloudLoaded() {
@@ -664,6 +761,15 @@ function viewAnalyzedObject(index: number) {
       uiStore.showDescriptionDialog = true;
     }
   }
+}
+
+/**
+ * Show notification for user feedback
+ */
+function showNotification(message: string) {
+  // Implementation depends on your UI framework
+  // You could use alert, toast, or a custom notification component
+  alert(message);
 }
 
 // Handle keyboard shortcuts - MODIFIED to address "A" key issue and add Ctrl+S
