@@ -5,8 +5,8 @@ import {ClickPoint} from '@/types/selection.types';
 import {AnnotationMarker, ClickAction, MarkerOptions} from '@/types/annotation.types';
 import {threeJsService} from '@/services/threeJs.service';
 import {getSelectionColor} from '@/utils/color.util';
-import {usePointCloudStore} from './pointCloud.store';
-import {useUiStore} from './ui.store';
+import {usePointCloudStore} from '@/stores/pointCloud.store';
+import {useUiStore} from '@/stores/ui.store';
 
 // Configuration constants
 const MAX_UNDO_HISTORY = 50; // Limit undo history to 50 actions

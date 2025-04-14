@@ -59,11 +59,11 @@ import * as THREE from 'three';
 import {PerformanceLoggerUtil} from '@/utils/performanceLogger.util';
 
 // Components
-import ViewportComponent from './ViewportComponent.vue';
-import LoadingOverlay from './LoadingOverlay.vue';
-import ModeIndicator from './ModeIndicator.vue';
-import SelectionInfo from './SelectionInfo.vue';
-import ObjectEditPanel from './ObjectEditPanel.vue';
+import ViewportComponent from '@/components/viewer/ViewportComponent.vue';
+import LoadingOverlay from '@/components/viewer/LoadingOverlay.vue';
+import ModeIndicator from '@/components/viewer/ModeIndicator.vue';
+import SelectionInfo from '@/components/viewer/SelectionInfo.vue';
+import ObjectEditPanel from '@/components/viewer/ObjectEditPanel.vue';
 
 // Composables
 import {useRaycasting} from '@/composables/useRaycasting';
