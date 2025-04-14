@@ -1,5 +1,5 @@
 // A simple and efficient spatial index for 3D point clouds using a grid-based approach
-import {PerformanceLoggerUtil} from './performanceLogger.util';
+import {PerformanceLoggerUtil} from '@/utils/performanceLogger.util';
 
 /**
  * Options for building the spatial index

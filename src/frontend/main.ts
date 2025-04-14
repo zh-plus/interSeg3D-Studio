@@ -1,5 +1,5 @@
 import {createApp} from 'vue';
-import App from './App.vue';
+import App from '@/App.vue';
 import {createPinia} from 'pinia';
 import {createVuetify} from 'vuetify';
 import * as components from 'vuetify/components';

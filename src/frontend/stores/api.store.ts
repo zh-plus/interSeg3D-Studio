@@ -2,9 +2,9 @@ import {defineStore} from 'pinia';
 import {computed, ref} from 'vue';
 import {apiService} from '@/services/api.service';
 import {InferenceRequest, MaskObjectRecognitionResult} from '@/types/apiService.types';
-import {usePointCloudStore} from './pointCloud.store';
-import {useAnnotationStore} from './annotation.store';
-import {useUiStore} from './ui.store';
+import {usePointCloudStore} from '@/stores/pointCloud.store';
+import {useAnnotationStore} from '@/stores/annotation.store';
+import {useUiStore} from '@/stores/ui.store';
 
 export const useApiStore = defineStore('api', () => {
     // References to other stores
