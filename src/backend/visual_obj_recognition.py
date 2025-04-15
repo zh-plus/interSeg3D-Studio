@@ -4,6 +4,7 @@ from pathlib import Path
 from pprint import pprint
 from typing import List, Tuple
 
+import httpx
 import numpy as np
 from PIL import Image
 from dotenv import load_dotenv
@@ -67,8 +68,11 @@ def mask_obj_recognition(point_cloud_path: str | Path, mask: np.ndarray | str, o
     if not api_key:
         raise ValueError("GOOGLE_API_KEY environment variable is not set. Please set it in the .env file.")
 
+    TIMEOUT = 10000
+
     # Initialize the Google Gen AI client with your API key.
-    client = genai.Client(api_key=api_key)
+    client = genai.Client(api_key=api_key,
+                          http_options=types.HttpOptions(timeout=TIMEOUT))  # 10s timeout
 
     # Set mask mode for rendering (options: "outline" or "full")
     mask_mode = "outline"
@@ -113,14 +117,22 @@ def mask_obj_recognition(point_cloud_path: str | Path, mask: np.ndarray | str, o
     )
 
     # Call the Gemini-2.0-flash model with the images and the prompt.
-    response = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=images + [prompt],
-        config=types.GenerateContentConfig(
-            response_mime_type='application/json',
-            response_schema=ObjInfo,
-        ),
-    )
+    response = None
+    for i in range(3):
+        try:
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=images + [prompt],
+                config=types.GenerateContentConfig(
+                    response_mime_type='application/json',
+                    response_schema=ObjInfo,
+                )
+            )
+        except (httpx.ConnectTimeout, httpx.ReadTimeout) as e:
+            print(f"Connection timed out after {TIMEOUT} ms, retrying number: {i + 1}")
+
+    if response is None:
+        raise RuntimeError("Failed to get a response from the model after 3 attempts.")
 
     print('Get response from LLM')
 
@@ -143,18 +155,26 @@ if __name__ == '__main__':
 
     pcd_path = Path('agile3d/data/interactive_dataset/scene_00_reconstructed_01_transformed_mesh/scan.ply')
 
+    # result_path, mask = infer(
+    #     point_cloud_path=pcd_path,
+    #     click_positions=[[1.3158004, 1.5544679, 0.4713757], [-0.14292482, 1.3323758, 0.49515364]],
+    #     click_obj_indices=[1, 2],
+    #     click_obj_names=["sofa", "desk"],
+    #     output_dir="./outputs"
+    # )
+
     result_path, mask = infer(
         point_cloud_path=pcd_path,
-        click_positions=[[1.3158004, 1.5544679, 0.4713757], [-0.14292482, 1.3323758, 0.49515364]],
-        click_obj_indices=[1, 2],
-        click_obj_names=["sofa", "desk"],
+        click_positions=[[1.3158004, 1.5544679, 0.4713757]],
+        click_obj_indices=[1],
+        click_obj_names=["sofa"],
         output_dir="./outputs"
     )
 
     result = mask_obj_recognition(
         point_cloud_path=pcd_path,
         mask=mask,
-        obj_id=2
+        obj_id=1
     )
 
     pprint(result)

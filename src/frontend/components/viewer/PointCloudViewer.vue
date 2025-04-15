@@ -1,5 +1,3 @@
-// The file content remains largely the same, we only need to update the keyboard event handler
-
 <template>
   <div class="point-cloud-viewer">
     <!-- Use the extracted viewport component -->
@@ -13,27 +11,27 @@
     >
       <!-- Loading overlay -->
       <LoadingOverlay
-        :message="pointCloudStore.isLoading ? 'Loading point cloud...' : 'Processing...'"
-        :progress="pointCloudStore.loadingProgress ?? undefined"
-        :show="pointCloudStore.isLoading || annotationStore.isProcessingSelection"
+          :message="pointCloudStore.isLoading ? 'Loading point cloud...' : 'Processing...'"
+          :progress="pointCloudStore.loadingProgress ?? undefined"
+          :show="pointCloudStore.isLoading || annotationStore.isProcessingSelection"
       />
 
       <!-- Mode indicator -->
       <ModeIndicator
-        :click-mode="uiStore.clickMode"
-        :mode="uiStore.interactionMode"
+          :click-mode="uiStore.clickMode"
+          :mode="uiStore.interactionMode"
       />
 
       <!-- Selection info -->
       <SelectionInfo
-        :can-redo="annotationStore.canRedo"
-        :can-undo="annotationStore.canUndo"
-        :click-count="annotationStore.clickCount"
-        :click-points="annotationStore.clickedPoints"
-        :coordinate="annotationStore.selectedCoordinate"
-        :is-processing-selection="annotationStore.isProcessingSelection"
-        :point-count="pointCloudStore.pointCloudData.pointCount"
-        :show-debug="showDebug"
+          :can-redo="annotationStore.canRedo"
+          :can-undo="annotationStore.canUndo"
+          :click-count="annotationStore.clickCount"
+          :click-points="annotationStore.clickedPoints"
+          :coordinate="annotationStore.selectedCoordinate"
+          :is-processing-selection="annotationStore.isProcessingSelection"
+          :point-count="pointCloudStore.pointCloudData.pointCount"
+          :show-debug="showDebug"
       />
 
       <!-- Undo/Redo notification -->
@@ -54,7 +52,7 @@
 </template>
 
 <script lang="ts" setup>
-import {ref, watch, onMounted, onBeforeUnmount, computed} from 'vue';
+import {computed, onBeforeUnmount, onMounted, ref, watch} from 'vue';
 import * as THREE from 'three';
 import {PerformanceLoggerUtil} from '@/utils/performanceLogger.util';
 
@@ -537,6 +535,16 @@ const forceRenderUpdate = () => {
   }
 };
 
+// Refresh the viewport when the window is resized
+const refreshViewport = () => {
+  if (viewportComponent.value) {
+    // Use setTimeout to ensure the DOM has updated
+    setTimeout(() => {
+      viewportComponent.value?.forceResize();
+    }, 50);
+  }
+};
+
 // Handle keyboard events directly (modified to fix the "A" key issue)
 const handleKeyboardShortcuts = (e: KeyboardEvent): void => {
   // Prevent handling if any input elements are focused
@@ -607,6 +615,13 @@ onMounted(() => {
   // Add keyboard event listener for shortcuts
   window.addEventListener('keydown', handleKeyboardShortcuts);
 
+  // Ensure the viewport is sized correctly after mount
+  setTimeout(() => {
+    if (viewportComponent.value) {
+      viewportComponent.value.forceResize();
+    }
+  }, 200);
+
   console.log('PointCloudViewer: Mounted with mode', uiStore.interactionMode);
 });
 
@@ -634,7 +649,7 @@ onBeforeUnmount(() => {
 defineExpose({
   performUndo,
   performRedo,
-  refreshViewport: () => viewportComponent.value?.refreshViewport(),
+  refreshViewport,
   refreshMarkers,
   forceRenderUpdate,
   getClickDataForApi: () => annotationStore.clickDataForApi
@@ -647,6 +662,8 @@ defineExpose({
   height: 100%;
   overflow: hidden;
   position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 .undo-redo-notification {

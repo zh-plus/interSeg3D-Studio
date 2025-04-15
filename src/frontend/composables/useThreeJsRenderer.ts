@@ -43,14 +43,18 @@ export function useThreeJsRenderer(container: Ref<HTMLElement | null>) {
         resizeObserver = new ResizeObserver((entries) => {
             for (const entry of entries) {
                 const {width, height} = entry.contentRect;
-                console.debug(`Container resized via ResizeObserver: ${width}x${height}`);
 
-                // Update viewport with the new dimensions
-                threeJsService.updateViewport({
-                    width,
-                    height,
-                    pixelRatio: Math.min(window.devicePixelRatio, 2)
-                });
+                // Only update if dimensions have actually changed
+                if (width > 0 && height > 0) {
+                    console.debug(`Container resized via ResizeObserver: ${width}x${height}`);
+
+                    // Update viewport with the new dimensions
+                    threeJsService.updateViewport({
+                        width,
+                        height,
+                        pixelRatio: Math.min(window.devicePixelRatio, 2)
+                    });
+                }
             }
         });
 
@@ -62,15 +66,17 @@ export function useThreeJsRenderer(container: Ref<HTMLElement | null>) {
     const handleResize = () => {
         if (!container.value) return;
 
-        // Immediate update for better responsiveness
-        const {width, height} = container.value.getBoundingClientRect();
-        console.debug(`Window resize detected: ${width}x${height}`);
+        const rect = container.value.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+            console.debug(`Window resize detected: ${rect.width}x${rect.height}`);
 
-        threeJsService.updateViewport({
-            width: container.value.clientWidth,
-            height: container.value.clientHeight,
-            pixelRatio: Math.min(window.devicePixelRatio, 2)
-        });
+            // Ensure we're using the exact container dimensions
+            threeJsService.updateViewport({
+                width: rect.width,
+                height: rect.height,
+                pixelRatio: Math.min(window.devicePixelRatio, 2)
+            });
+        }
 
         // Debounced update for full recalculation
         debouncedResize();

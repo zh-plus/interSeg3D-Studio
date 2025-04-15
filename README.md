@@ -37,6 +37,7 @@ click-based segmentation algorithm and Gemini for 3D object recognition & descri
 
 2. Install AGILE3D according to the instructions at:
    https://github.com/ywyue/AGILE3D/blob/main/installation.md
+   (Dont clone the repository, just install the environment. And try to use gcc-9 & g++-9 to install MinkowskiEngine.)
 
 3. Download the pre-trained model weights from:
    https://polybox.ethz.ch/index.php/s/RnB1o8X7g1jL0lM, and put it into the `src/backend/agile3d/weights` directory.

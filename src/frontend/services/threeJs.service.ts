@@ -310,6 +310,11 @@ class ThreeJsService {
 
         const {width, height, pixelRatio} = options;
 
+        if (width <= 0 || height <= 0) {
+            console.warn(`Invalid viewport dimensions: ${width}x${height}`);
+            return;
+        }
+
         // Debug log the original dimensions
         const originalAspect = this.context.camera.aspect;
         const newAspect = width / height;
@@ -324,11 +329,18 @@ class ThreeJsService {
 
         // Ensure canvas size matches container size exactly
         const canvas = this.context.renderer.domElement;
-        if (Math.abs(canvas.clientWidth - width) > 1 || Math.abs(canvas.clientHeight - height) > 1) {
-            console.debug(`Canvas size mismatch: canvas(${canvas.clientWidth}x${canvas.clientHeight}) container(${width}x${height})`);
-            canvas.style.width = `${width}px`;
-            canvas.style.height = `${height}px`;
-        }
+
+        // Apply fixed dimensions to canvas
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
+
+        // Add explicit constraint styles
+        canvas.style.maxWidth = '100%';
+        canvas.style.maxHeight = '100%';
+        canvas.style.display = 'block';
+        canvas.style.position = 'absolute';
+        canvas.style.top = '0';
+        canvas.style.left = '0';
 
         if (pixelRatio) {
             this.context.renderer.setPixelRatio(pixelRatio);

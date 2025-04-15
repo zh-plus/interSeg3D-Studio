@@ -47,7 +47,7 @@ const renderScene = (): void => {
   }
 };
 
-// Update controls based on interaction mode - DEFINE THIS BEFORE THE WATCH!
+// Update controls based on interaction mode
 const updateControlsState = (mode: InteractionMode): void => {
   if (!threeContext.value?.controls) return;
 
@@ -86,20 +86,52 @@ const handleSceneReady = (): void => {
   }
 };
 
+// Force a resize to ensure canvas fits properly
+const forceResize = (): void => {
+  if (!container.value) return;
+
+  // *** FIX: Access the DOM element through container.value ***
+  const rect = container.value.getBoundingClientRect();
+  console.log(`Forcing resize: ${rect.width}x${rect.height}`);
+
+  emit('viewport-resize', {
+    width: rect.width,
+    height: rect.height
+  });
+
+  threeJsService.updateViewport({
+    width: rect.width,
+    height: rect.height,
+    pixelRatio: Math.min(window.devicePixelRatio, 2)
+  });
+
+  // Ensure canvas style is properly set
+  if (threeContext.value?.renderer?.domElement) {
+    const canvas = threeContext.value.renderer.domElement;
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    canvas.style.display = 'block';
+  }
+};
+
 // Setup on mount
 onMounted(() => {
   if (container.value) {
     // Initialize cursor style
     container.value.style.cursor = props.cursorStyle;
 
-    // Emit viewport size for parent components
+    // Initialize viewport size
+    const rect = container.value.getBoundingClientRect();
     emit('viewport-resize', {
-      width: container.value.clientWidth,
-      height: container.value.clientHeight
+      width: rect.width,
+      height: rect.height
     });
 
     // Notify parent when scene is ready
     handleSceneReady();
+
+    // Force a resize after a slight delay to ensure proper sizing
+    setTimeout(forceResize, 100);
   }
 });
 
@@ -112,6 +144,7 @@ onBeforeUnmount(() => {
 defineExpose({
   refreshViewport,
   renderScene,
+  forceResize,
   getContainer: () => container.value,
   getContext: () => threeContext.value,
   updateMousePosition: (clientX: number, clientY: number) => {
@@ -156,5 +189,7 @@ defineExpose({
   height: 100%;
   overflow: hidden;
   position: relative;
+  display: flex;
+  flex-direction: column;
 }
 </style>
