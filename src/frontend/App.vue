@@ -8,63 +8,64 @@
       </v-btn>
     </v-app-bar>
 
-    <v-main>
-      <v-container class="fill-height pa-0" fluid>
-        <v-row class="fill-height" no-gutters>
-          <!-- 3D Viewer takes up most of the space -->
-          <v-col class="position-relative" cols="9">
-            <PointCloudViewer
-                ref="pointCloudViewer"
-                @error="handleViewerError"
-                @point-cloud-loaded="handlePointCloudLoaded"
-                @create-object="handleCreateObjectFromMarker"
-            />
+    <v-main class="main-content">
+      <!-- Replace the Vuetify grid with a custom flex container -->
+      <div class="custom-container">
+        <!-- 3D Viewer panel - 75% width -->
+        <div class="viewer-panel">
+          <PointCloudViewer
+              ref="pointCloudViewer"
+              @error="handleViewerError"
+              @point-cloud-loaded="handlePointCloudLoaded"
+              @create-object="handleCreateObjectFromMarker"
+          />
 
-            <!-- Floating interaction mode toggle -->
-            <div class="interaction-toggle">
-              <v-btn-toggle v-model="interactionMode" dense mandatory>
-                <v-btn small value="navigate" :color="interactionMode === 'navigate' ? 'primary' : undefined"
-                       title="Navigate Mode (Rotate/Pan/Zoom)">
-                  <v-icon small>mdi-rotate-3d</v-icon>
-                  Navigate
-                </v-btn>
-                <v-btn small value="annotate" :color="interactionMode === 'annotate' ? 'warning' : undefined"
-                       title="Annotate Mode (Add Points)">
-                  <v-icon small>mdi-cursor-default-click</v-icon>
-                  Annotate
-                </v-btn>
-                <v-btn small value="select" :color="interactionMode === 'select' ? 'purple' : undefined"
-                       title="Select Mode (Edit Objects)">
-                  <v-icon small>mdi-cursor-pointer</v-icon>
-                  Select
-                </v-btn>
-              </v-btn-toggle>
-            </div>
+          <!-- Floating interaction mode toggle -->
+          <div class="interaction-toggle">
+            <v-btn-toggle v-model="interactionMode" dense mandatory>
+              <v-btn small value="navigate" :color="interactionMode === 'navigate' ? 'primary' : undefined"
+                     title="Navigate Mode (Rotate/Pan/Zoom)">
+                <v-icon small>mdi-rotate-3d</v-icon>
+                Navigate
+              </v-btn>
+              <v-btn small value="annotate" :color="interactionMode === 'annotate' ? 'warning' : undefined"
+                     title="Annotate Mode (Add Points)">
+                <v-icon small>mdi-cursor-default-click</v-icon>
+                Annotate
+              </v-btn>
+              <v-btn small value="select" :color="interactionMode === 'select' ? 'purple' : undefined"
+                     title="Select Mode (Edit Objects)">
+                <v-icon small>mdi-cursor-pointer</v-icon>
+                Select
+              </v-btn>
+            </v-btn-toggle>
+          </div>
 
-            <div v-if="apiStore.isProcessing || apiStore.isAnalyzing" class="loading-overlay">
-              <v-progress-circular
-                  color="primary"
-                  indeterminate
-                  size="64"
-              ></v-progress-circular>
-              <p class="mt-4">{{
-                  apiStore.isAnalyzing ? 'Analyzing objects...' : apiStore.processingMessage ? 'Processing: ' + apiStore.processingMessage : 'Processing...'
-                }}</p>
+          <div v-if="apiStore.isProcessing || apiStore.isAnalyzing" class="loading-overlay">
+            <v-progress-circular
+                color="primary"
+                indeterminate
+                size="64"
+            ></v-progress-circular>
+            <p class="mt-4">{{
+                apiStore.isAnalyzing ? 'Analyzing objects...' : apiStore.processingMessage ? 'Processing: ' + apiStore.processingMessage : 'Processing...'
+              }}</p>
 
-              <!-- Add this progress indicator -->
-              <v-progress-linear
-                  v-if="apiStore.processingProgress !== null"
-                  class="mt-2"
-                  color="primary"
-                  height="20"
-                  :value="apiStore.processingProgress"
-              >
-                {{ apiStore.processingProgress }}%
-              </v-progress-linear>
-            </div>
-          </v-col>
+            <!-- Add this progress indicator -->
+            <v-progress-linear
+                v-if="apiStore.processingProgress !== null"
+                class="mt-2"
+                color="primary"
+                height="20"
+                :value="apiStore.processingProgress"
+            >
+              {{ apiStore.processingProgress }}%
+            </v-progress-linear>
+          </div>
+        </div>
 
-          <!-- Control Panel Component -->
+        <!-- Control Panel - 25% width -->
+        <div class="control-panel">
           <ControlPanel
               @file-uploaded="handleFileUploaded"
               @metadata-loaded="handleMetadataLoaded"
@@ -73,8 +74,8 @@
               @objects-analyzed="handleObjectsAnalyzed"
               @results-downloaded="handleResultsDownloaded"
           />
-        </v-row>
-      </v-container>
+        </div>
+      </div>
     </v-main>
 
     <!-- Use the extracted InstructionsDialog component -->
@@ -266,10 +267,20 @@ function handleKeydown(e: KeyboardEvent) {
   // The "A" key toggle is now exclusively handled in PointCloudViewer.vue
 }
 
+// Listen for window resize event to update component proportions
+function handleWindowResize() {
+  // Force recalculate proportions
+  if (pointCloudViewer.value) {
+    pointCloudViewer.value.refreshViewport();
+  }
+}
+
 // Set up keyboard event listeners
 onMounted(() => {
   // Add global keyboard event listener - but don't handle the "A" key here
   window.addEventListener('keydown', handleKeydown);
+  // Add window resize listener
+  window.addEventListener('resize', handleWindowResize);
   console.log('App.vue: Mounted and keyboard listeners added');
 });
 
@@ -281,31 +292,65 @@ onBeforeUnmount(() => {
 
   // Remove keyboard event listener
   window.removeEventListener('keydown', handleKeydown);
+  // Remove window resize listener
+  window.removeEventListener('resize', handleWindowResize);
   console.log('App.vue: Unmounted and listeners removed');
 });
 </script>
 
+<style>
+/* Add global styles to fix the root elements */
+html, body, #app {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Apply border-box to all elements for more predictable sizing */
+* {
+  box-sizing: border-box;
+}
+</style>
+
+<!-- REMOVED REDUNDANT GLOBAL STYLE BLOCK -->
+
 <style scoped>
-.position-relative {
-  position: relative;
+/* Main content area */
+.main-content {
+  height: calc(100% - 64px); /* Subtract the app bar height */
+  width: 100%;
+  overflow: hidden;
 }
 
-.loading-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.7);
+/* Custom container with flexbox */
+.custom-container {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-  color: white;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 
-/* Interaction mode toggle */
+/* Viewer panel - exactly 75% width */
+.viewer-panel {
+  width: 75%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Control panel - exactly 25% width */
+.control-panel {
+  width: 25%;
+  height: 100%;
+  overflow-y: auto;
+  background-color: var(--v-background-base, #121212);
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* Interaction toggle */
 .interaction-toggle {
   position: absolute;
   top: 10px;
@@ -316,6 +361,7 @@ onBeforeUnmount(() => {
   padding: 5px;
 }
 
+/* Loading overlay */
 .loading-overlay {
   position: absolute;
   top: 0;

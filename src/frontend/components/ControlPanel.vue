@@ -1,7 +1,7 @@
 <template>
-  <v-col class="pa-4" cols="3">
+  <div class="control-panel-container">
     <!-- File Upload Section -->
-    <v-card class="mb-4" outlined>
+    <v-card class="mb-4 control-card" outlined>
       <v-card-title>File Upload</v-card-title>
       <v-card-text>
         <v-file-input
@@ -191,7 +191,7 @@
     >
       SAVE RESULTS
     </v-btn>
-  </v-col>
+  </div>
 </template>
 
 <script lang="ts" setup>
@@ -493,12 +493,35 @@ async function downloadResults() {
 </script>
 
 <style scoped>
-/* Object list styling */
+.control-panel-container {
+  width: 100%;
+  height: 100%;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.control-card {
+  width: 100%;
+  max-width: 100%;
+  margin-bottom: 16px;
+}
+
+/* Add these styles to ensure the panel takes full width */
+:deep(.v-card) {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+:deep(.v-list) {
+  width: 100% !important;
+}
+
 .object-list {
   max-height: 300px;
   overflow-y: auto;
   border: 1px solid rgba(0, 0, 0, 0.12);
   border-radius: 4px;
+  width: 100%;
 }
 
 .object-list-item {
