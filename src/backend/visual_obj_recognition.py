@@ -145,7 +145,7 @@ def mask_obj_recognition(point_cloud_path: str | Path, mask: np.ndarray | str, o
 
     # Save the result to a JSON file
     with open(f'{view_output_dir}/result.json', 'w') as f:
-        json.dump(result, f, indent=4)
+        json.dump(result, f, indent=4, ensure_ascii=False)
 
     return result
 

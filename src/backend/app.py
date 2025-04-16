@@ -1,20 +1,22 @@
-import app_utils  # Import our custom utility functions
-import numpy as np
-import open3d as o3d
 import os
 import shutil
 import tempfile
+from typing import Dict, List, Any
+
+import numpy as np
+import open3d as o3d
 import torch
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+
+import app_utils  # Import our custom utility functions
+from app_utils import get_obj_color
 # Import the inference module
 from inference import Click, ClickHandler, PointCloudInference
-from interactive_tool.utils import get_obj_color  # Import for object coloring
 from logger import logger, StepTimer, timed
-from pydantic import BaseModel
-from typing import Dict, List, Any
 from visual_obj_recognition import mask_obj_recognition
 
 # Create static directory if it doesn't exist
@@ -441,7 +443,7 @@ async def download_results():
                 # Write the JSON file
                 json_path = os.path.join(temp_dir, "metadata.json")
                 with open(json_path, 'w') as f:
-                    json.dump(metadata, f, indent=2, cls=app_utils.NumpyEncoder)
+                    json.dump(metadata, f, indent=2, cls=app_utils.NumpyEncoder, ensure_ascii=False)
 
                 # Verify the JSON file was created
                 if not os.path.exists(json_path):

@@ -269,3 +269,65 @@ def load_point_cloud_data(file_path):
         logger.info(f"Loaded point cloud with {len(coords)} points")
 
     return coords, colors, is_point_cloud
+
+
+def get_obj_color(obj_id, normalize=True):
+    """
+    Generate a color for an object ID using HSL color space,
+    matching the frontend's getColorFromIndex function.
+
+    Args:
+        obj_id (int): Object ID
+        normalize (bool): Whether to normalize RGB values to 0-1 range
+                         (normalize=True returns 0-1, normalize=False returns 0-255)
+
+    Returns:
+        list: [r, g, b] color values
+    """
+    # Use the same algorithm as the frontend's getColorFromIndex
+    # In the frontend: const hue = (index * 50) % 360;
+    hue = (obj_id * 50) % 360
+
+    # Convert to 0-1 range for colorsys
+    h = hue / 360
+
+    # Use the same saturation and lightness as the frontend
+    # In the frontend: saturation = 1.0, lightness = 0.5
+    s = 1.0
+    l = 0.5
+
+    # Convert HSL to RGB (colorsys uses HSV, not HSL, so we need to convert)
+    # This algorithm matches THREE.Color().setHSL() in JavaScript
+    def hsl_to_rgb(h, s, l):
+        # Convert HSL to RGB
+        if l < 0.5:
+            q = l * (1 + s)
+        else:
+            q = l + s - l * s
+        p = 2 * l - q
+
+        # Helper function
+        def hue_to_rgb(p, q, t):
+            if t < 0: t += 1
+            if t > 1: t -= 1
+            if t < 1/6: return p + (q - p) * 6 * t
+            if t < 1/2: return q
+            if t < 2/3: return p + (q - p) * (2/3 - t) * 6
+            return p
+
+        r = hue_to_rgb(p, q, h + 1/3)
+        g = hue_to_rgb(p, q, h)
+        b = hue_to_rgb(p, q, h - 1/3)
+
+        return r, g, b
+
+    # Get RGB values
+    r, g, b = hsl_to_rgb(h, s, l)
+
+    # Return values based on normalization preference
+    if normalize:
+        # Already in 0-1 range
+        return [r, g, b]
+    else:
+        # Convert to 0-255 range
+        return [int(r * 255), int(g * 255), int(b * 255)]
