@@ -47,6 +47,7 @@ export const useAnnotationStore = defineStore('annotation', () => {
     const canUndo = computed(() => undoStack.value.length > 0);
     const canRedo = computed(() => redoStack.value.length > 0);
 
+
     // Click data formatted for API
     const clickDataForApi = computed(() => {
         const clickIdx: Record<string, number[]> = {'0': []};

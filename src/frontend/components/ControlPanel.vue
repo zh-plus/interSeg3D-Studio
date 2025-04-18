@@ -139,21 +139,6 @@
             Background
           </v-btn>
         </v-btn-toggle>
-
-        <v-slider
-            v-model="cubeSize"
-            :disabled="!pointCloudStore.pointCloudData.file"
-            label="Selection Size"
-            max="0.1"
-            min="0.005"
-            step="0.005"
-            thumb-label
-        ></v-slider>
-
-        <v-switch
-            v-model="autoInfer"
-            label="Auto-infer on click"
-        ></v-switch>
       </v-card-text>
     </v-card>
 
@@ -195,7 +180,7 @@
 </template>
 
 <script lang="ts" setup>
-import {computed} from 'vue';
+import {computed, ref} from 'vue';
 import SaveStatusIndicator from '@/components/viewer/SaveStatusIndicator.vue';
 import {getCssColorFromIndex} from '@/utils/color.util';
 import {useAnnotationStore, useApiStore, usePointCloudStore, useUiStore} from '@/stores';

@@ -97,7 +97,7 @@
         :loading="apiStore.isAnalyzing"
         :results="apiStore.analysisResults"
         @apply-label="applyAnalysisLabel"
-        @apply-all="applyAllAnalysisResults"
+        @apply-all="apiStore.applyAllAnalysisResults"
         @view-object="viewAnalyzedObject"
     />
   </v-app>
@@ -122,9 +122,6 @@ const apiStore = useApiStore();
 
 // References
 const pointCloudViewer = ref<InstanceType<typeof PointCloudViewer> | null>(null);
-
-// Auto-infer timer
-let autoInferTimer: number | null = null;
 
 // Computed property for interaction mode with getter/setter
 const interactionMode = computed({
@@ -174,18 +171,6 @@ function handleViewerError(errorMessage: string) {
  */
 function applyAnalysisLabel(data: { label: string, index: number }) {
   apiStore.applyAnalysisLabel(data);
-}
-
-/**
- * Apply all analysis results
- */
-function applyAllAnalysisResults() {
-  const appliedCount = apiStore.applyAllAnalysisResults();
-
-  if (appliedCount > 0) {
-    // Notify the user that objects have been updated
-    alert(`Applied ${appliedCount} object labels from analysis`);
-  }
 }
 
 /**
@@ -286,10 +271,6 @@ onMounted(() => {
 
 // Clean up when unmounting
 onBeforeUnmount(() => {
-  if (autoInferTimer) {
-    clearTimeout(autoInferTimer);
-  }
-
   // Remove keyboard event listener
   window.removeEventListener('keydown', handleKeydown);
   // Remove window resize listener
