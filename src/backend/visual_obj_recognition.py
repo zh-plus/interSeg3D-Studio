@@ -69,7 +69,7 @@ def mask_obj_recognition(point_cloud_path: str | Path, mask: np.ndarray | str, o
     if not api_key:
         raise ValueError("GOOGLE_API_KEY environment variable is not set. Please set it in the .env file.")
 
-    TIMEOUT = 10000
+    TIMEOUT = 20000
 
     # Initialize the Google Gen AI client with your API key.
     client = genai.Client(api_key=api_key,
