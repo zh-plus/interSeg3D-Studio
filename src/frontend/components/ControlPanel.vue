@@ -180,7 +180,7 @@
 </template>
 
 <script lang="ts" setup>
-import {computed, ref} from 'vue';
+import {computed} from 'vue';
 import SaveStatusIndicator from '@/components/viewer/SaveStatusIndicator.vue';
 import {getCssColorFromIndex} from '@/utils/color.util';
 import {useAnnotationStore, useApiStore, usePointCloudStore, useUiStore} from '@/stores';
@@ -392,7 +392,6 @@ async function handleMetadataLoad(fileEvent: Event | File) {
       }
     }
 
-    alert('Metadata loaded successfully!');
     emit('metadata-loaded', metadata);
   } catch (error: any) {
     alert(`Error loading metadata: ${error.message}`);
