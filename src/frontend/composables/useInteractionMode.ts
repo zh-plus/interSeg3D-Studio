@@ -32,9 +32,6 @@ export function useInteractionMode(options?: UseInteractionModeOptions) {
     // Cube size for selection
     const cubeSize = ref<number>(0.02);
 
-    // Whether to auto-infer on click
-    const autoInfer = ref<boolean>(false);
-
     // Computed to check if we're in navigation mode
     const isNavigateMode = computed<boolean>(() => interactionMode.value === 'navigate');
 
@@ -116,7 +113,6 @@ export function useInteractionMode(options?: UseInteractionModeOptions) {
         selectedObjectIndex,
         currentObjectIdx,
         cubeSize,
-        autoInfer,
         isNavigateMode,
         isAnnotateMode,
 

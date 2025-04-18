@@ -349,8 +349,11 @@ async def run_mask_obj_recognition(request: MaskObjDetectionRequest):
         # Process each object in parallel.
         import multiprocessing
 
+        processor_num = min(8, min(multiprocessing.cpu_count(), len(work_args)))
+        logger.info(f"Using {processor_num} processors for mask object recognition")
+
         with StepTimer("Mask Object Recognition"):
-            with multiprocessing.Pool(processes=max(8, os.cpu_count())) as pool:
+            with multiprocessing.Pool(processes=processor_num) as pool:
                 result = pool.map(mask_obj_recognition_worker, work_args)
 
         # Store the results for later use in download

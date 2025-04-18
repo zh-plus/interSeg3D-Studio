@@ -34,9 +34,9 @@
           :show-debug="showDebug"
       />
 
-      <!-- Undo/Redo notification -->
-      <div v-if="showUndoRedoNotification" class="undo-redo-notification">
-        {{ undoRedoNotificationText }}
+      <!-- Toast notification -->
+      <div v-if="showingToastNotification" class="toast-notification">
+        {{ toastNotificationText }}
       </div>
     </ViewportComponent>
 
@@ -100,10 +100,10 @@ const editPanelPosition = ref<{ x: number, y: number }>({x: 0, y: 0});
 const showObjectEditPanel = ref(false);
 const selectedObjectForEdit = ref(null);
 
-// Undo/Redo notification
-const showUndoRedoNotification = ref(false);
-const undoRedoNotificationText = ref('');
-const undoRedoNotificationTimer = ref<number | null>(null);
+// Toast notification
+const showingToastNotification = ref(false);
+const toastNotificationText = ref('');
+const toastNotificationTimer = ref<number | null>(null);
 
 // Get raycasting functionality
 const {
@@ -125,24 +125,26 @@ watch(() => pointCloudStore.segmentedPointCloud, async (newData) => {
 });
 
 /**
- * Display a brief notification for undo/redo actions
+ * Display a toast notification message to the user
+ * @param text The message to display in the notification
+ * @param duration How long to show the notification in milliseconds (default: 2000ms)
  */
-const showNotification = (text: string): void => {
+const showToastNotification = (text: string, duration: number = 2000): void => {
   // Clear any existing timer
-  if (undoRedoNotificationTimer.value) {
-    window.clearTimeout(undoRedoNotificationTimer.value);
-    undoRedoNotificationTimer.value = null;
+  if (toastNotificationTimer.value) {
+    window.clearTimeout(toastNotificationTimer.value);
+    toastNotificationTimer.value = null;
   }
 
   // Set notification text and show it
-  undoRedoNotificationText.value = text;
-  showUndoRedoNotification.value = true;
+  toastNotificationText.value = text;
+  showingToastNotification.value = true;
 
-  // Hide after 2 seconds
-  undoRedoNotificationTimer.value = window.setTimeout(() => {
-    showUndoRedoNotification.value = false;
-    undoRedoNotificationTimer.value = null;
-  }, 2000);
+  // Hide after specified duration
+  toastNotificationTimer.value = window.setTimeout(() => {
+    showingToastNotification.value = false;
+    toastNotificationTimer.value = null;
+  }, duration);
 };
 
 /**
@@ -154,7 +156,7 @@ const saveObjectChanges = (updatedObject: any): void => {
     description: updatedObject.description
   });
 
-  showNotification(`Updated object: ${updatedObject.name}`);
+  showToastNotification(`Updated object: ${updatedObject.name}`);
 };
 
 /**
@@ -187,12 +189,12 @@ const runSegmentation = async (): Promise<void> => {
   }
 
   try {
-    showNotification('Running segmentation...');
+    showToastNotification('Running segmentation...');
     await apiStore.runSegmentation();
-    showNotification('Segmentation complete!');
+    showToastNotification('Segmentation complete!');
   } catch (error: any) {
     console.error('Error running segmentation:', error);
-    showNotification(`Error: ${error.message}`);
+    showToastNotification(`Error: ${error.message}`);
   }
 };
 
@@ -273,7 +275,7 @@ const selectObject = (event: MouseEvent): void => {
   console.log('showObjectEditPanel set to true');
 
   // Show notification about the selected object
-  showNotification(`Selected object: ${selectedObject.name}`);
+  showToastNotification(`Selected object: ${selectedObject.name}`);
 
   // Also highlight the object in the right panel list
   const objIndex = uiStore.objects.findIndex(obj => obj.id === objId);
@@ -480,7 +482,7 @@ const performUndo = (): void => {
 
   if (undoneAction) {
     // Notify user
-    showNotification(`Undid click ${undoneAction.clickPoint.objectIdx === 0 ? 'background' : 'object'}`);
+    showToastNotification(`Undid click ${undoneAction.clickPoint.objectIdx === 0 ? 'background' : 'object'}`);
   }
 };
 
@@ -494,7 +496,7 @@ const performRedo = (): void => {
 
   if (redoneAction) {
     // Notify user
-    showNotification(`Redid click ${redoneAction.clickPoint.objectIdx === 0 ? 'background' : 'object'}`);
+    showToastNotification(`Redid click ${redoneAction.clickPoint.objectIdx === 0 ? 'background' : 'object'}`);
   }
 };
 
@@ -579,7 +581,7 @@ const handleKeyboardShortcuts = (e: KeyboardEvent): void => {
     // Toggle only between navigate and annotate
     const newMode = uiStore.isNavigateMode ? 'annotate' : 'navigate';
     uiStore.setInteractionMode(newMode);
-    showNotification(`Switched to ${newMode.toUpperCase()} mode`);
+    showToastNotification(`Switched to ${newMode.toUpperCase()} mode`);
   }
 
   // S key to activate select mode
@@ -587,7 +589,7 @@ const handleKeyboardShortcuts = (e: KeyboardEvent): void => {
     e.preventDefault();
     e.stopPropagation(); // Stop event propagation
     uiStore.setInteractionMode('select');
-    showNotification('Switched to SELECT mode');
+    showToastNotification('Switched to SELECT mode');
   }
 
   // Enter key to run segmentation
@@ -640,8 +642,8 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeyboardShortcuts);
 
   // Clear notification timer
-  if (undoRedoNotificationTimer.value) {
-    window.clearTimeout(undoRedoNotificationTimer.value);
+  if (toastNotificationTimer.value) {
+    window.clearTimeout(toastNotificationTimer.value);
   }
 });
 
@@ -666,7 +668,7 @@ defineExpose({
   flex-direction: column;
 }
 
-.undo-redo-notification {
+.toast-notification {
   position: absolute;
   top: 70px;
   left: 50%;

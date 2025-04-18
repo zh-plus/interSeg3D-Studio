@@ -139,21 +139,6 @@
             Background
           </v-btn>
         </v-btn-toggle>
-
-        <v-slider
-            v-model="cubeSize"
-            :disabled="!pointCloudStore.pointCloudData.file"
-            label="Selection Size"
-            max="0.1"
-            min="0.005"
-            step="0.005"
-            thumb-label
-        ></v-slider>
-
-        <v-switch
-            v-model="autoInfer"
-            label="Auto-infer on click"
-        ></v-switch>
       </v-card-text>
     </v-card>
 
@@ -407,7 +392,6 @@ async function handleMetadataLoad(fileEvent: Event | File) {
       }
     }
 
-    alert('Metadata loaded successfully!');
     emit('metadata-loaded', metadata);
   } catch (error: any) {
     alert(`Error loading metadata: ${error.message}`);

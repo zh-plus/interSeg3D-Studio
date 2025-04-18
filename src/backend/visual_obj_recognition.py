@@ -13,6 +13,7 @@ from google.genai import types
 from pydantic import BaseModel
 
 from inference import infer
+from logger import logger
 # Import the test_camera_positions function from view_rendering.py
 from view_rendering import test_camera_positions
 
@@ -50,7 +51,7 @@ def mask_obj_recognition(point_cloud_path: str | Path, mask: np.ndarray | str, o
     Performs mask-based object recognition on a given point cloud using the provided mask.
 
     This function generates rendered views of the masked object, sends these images along with a prompt
-    to the Gemini-2.0-flash model, and returns the model's response text along with the computed cost.
+    to the Gemini-2.5-flash model, and returns the model's response text along with the computed cost.
 
     Args:
         point_cloud_path (str | Path): Path to the 3D point cloud file.
@@ -68,7 +69,7 @@ def mask_obj_recognition(point_cloud_path: str | Path, mask: np.ndarray | str, o
     if not api_key:
         raise ValueError("GOOGLE_API_KEY environment variable is not set. Please set it in the .env file.")
 
-    TIMEOUT = 10000
+    TIMEOUT = 20000
 
     # Initialize the Google Gen AI client with your API key.
     client = genai.Client(api_key=api_key,
@@ -100,9 +101,9 @@ def mask_obj_recognition(point_cloud_path: str | Path, mask: np.ndarray | str, o
             try:
                 images.append(Image.open(path))
             except Exception as e:
-                print(f"Error opening {path}: {e}")
+                logger.error(f"Error opening {path}: {e}")
         else:
-            print(f"Warning: {path} not found.")
+            logger.warning(f"Warning: {path} not found.")
 
     # Construct the analysis prompt.
     prompt = (
@@ -121,20 +122,23 @@ def mask_obj_recognition(point_cloud_path: str | Path, mask: np.ndarray | str, o
     for i in range(3):
         try:
             response = client.models.generate_content(
-                model="gemini-2.0-flash",
+                model="gemini-2.5-flash-preview-04-17",
                 contents=images + [prompt],
                 config=types.GenerateContentConfig(
                     response_mime_type='application/json',
                     response_schema=ObjInfo,
+                    # thinking_config=types.ThinkingConfig(
+                    #     thinking_budget=1024
+                    # )
                 )
             )
         except (httpx.ConnectTimeout, httpx.ReadTimeout) as e:
-            print(f"Connection timed out after {TIMEOUT} ms, retrying number: {i + 1}")
+            logger.warning(f"Connection timed out after {TIMEOUT} ms, retrying number: {i + 1}")
 
     if response is None:
         raise RuntimeError("Failed to get a response from the model after 3 attempts.")
 
-    print('Get response from LLM')
+    logger.info('Get response from LLM')
 
     # Extract response text and compute the cost using the provided helper function.
     response_text = response.text
