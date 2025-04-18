@@ -13,11 +13,12 @@ import numpy as np
 import open3d as o3d
 from open3d.visualization import rendering
 
+from logger import logger
+
 
 def load_geometry_from_file(
         file_path: str | Path,
         background_color: List[float],
-        debug: bool = False
 ) -> Tuple[str, np.ndarray, np.ndarray, Union[o3d.geometry.TriangleMesh, o3d.geometry.PointCloud]]:
     """
     Loads a geometry from the specified file, determining whether it is a mesh or a point cloud.
@@ -25,7 +26,6 @@ def load_geometry_from_file(
     Parameters:
         file_path (str or Path): Path to the file containing the geometry.
         background_color (List[float]): Color to use for vertices without specified colors.
-        debug (bool): If True, prints debug information.
 
     Returns:
         Tuple containing:
@@ -49,8 +49,7 @@ def load_geometry_from_file(
                   if geometry.has_vertex_colors()
                   else np.tile(background_color, (len(coords), 1)))
         geometry_type = "mesh"
-        if debug:
-            print("Loaded mesh geometry from file.")
+        logger.debug("Loaded mesh geometry from file.")
     else:
         geometry = o3d.io.read_point_cloud(file_path)
         coords = np.array(geometry.points)
@@ -59,8 +58,7 @@ def load_geometry_from_file(
                   if geometry.has_colors()
                   else np.tile(background_color, (len(coords), 1)))
         geometry_type = "pointcloud"
-        if debug:
-            print("Loaded point cloud geometry from file.")
+        logger.debug("Loaded point cloud geometry from file.")
     return geometry_type, coords, colors, geometry
 
 
@@ -153,7 +151,6 @@ def render_object_views(
         background_color: List[float] = [0.8, 0.8, 0.8],
         view_angle: float = 60.0,
         mask_mode: str = "outline",  # "outline" or "full"
-        debug: bool = True,
 ) -> List[str]:
     """
     Renders views of an object based on a mask and a set of camera positions.
@@ -168,7 +165,6 @@ def render_object_views(
         background_color (List[float]): Background color for rendering.
         view_angle (float): Camera field of view angle in degrees.
         mask_mode (str): Visualization mode ("outline" or "full").
-        debug (bool): If True, prints debug messages.
 
     Returns:
         List[str]: List of file paths to the rendered image views.
@@ -180,7 +176,7 @@ def render_object_views(
     os.makedirs(output_dir, exist_ok=True)
 
     # Load the geometry from the specified file.
-    geometry_type, coords, colors, geometry = load_geometry_from_file(point_cloud_path, background_color, debug)
+    geometry_type, coords, colors, geometry = load_geometry_from_file(point_cloud_path, background_color)
     mask_bool = np.array(mask, dtype=bool)
 
     if mask_bool.shape[0] != len(coords):
@@ -224,8 +220,7 @@ def render_object_views(
         image_path = os.path.join(output_dir, f"view_{idx:03d}.png")
         o3d.io.write_image(image_path, img)
         image_paths.append(image_path)
-        if debug:
-            print(f"Saved view {idx} to {image_path}")
+        logger.debug(f"Saved view {idx} to {image_path}")
     return image_paths
 
 
@@ -275,7 +270,7 @@ def create_camera_markers(
         # Create a sphere mesh for each camera marker.
         sphere_mesh = o3d.geometry.TriangleMesh.create_sphere(radius=sphere_radius)
         sphere_mesh.translate(np.array(pos))
-        sphere_mesh.paint_uniform_color([0.0, 1.0, 0.0])
+        sphere_mesh.paint_uniform_color([0.0, 0.999, 0.0])
         # Sample points uniformly from the sphere mesh.
         marker = sphere_mesh.sample_points_uniformly(number_of_points=500)
         camera_marker_clouds.append(marker)
@@ -351,6 +346,9 @@ def test_camera_positions(
     Raises:
         ValueError: If the mask file format is unsupported or if the mask length does not match.
     """
+    logger.info(f"Setting up camera positions...")
+    point_cloud_path = Path(point_cloud_path)
+
     # If mask is provided as a file path, load it.
     if isinstance(mask, str):
         if mask.endswith('.npy'):
@@ -422,8 +420,9 @@ def test_camera_positions(
     # Save the combined scene (with camera markers and masked object) as a PLY file.
     os.makedirs(output_dir, exist_ok=True)
     ply_output_path = os.path.join(output_dir, "scene_with_camera_markers.ply")
+    logger.info("Writing scene PLY with camera markers...")
     o3d.io.write_point_cloud(ply_output_path, combined_scene)
-    print(f"Scene PLY with camera markers saved to {ply_output_path}")
+    logger.info(f"Scene PLY with camera markers saved to {ply_output_path}")
 
     # Render object views using the provided mask_mode.
     return render_object_views(
@@ -433,7 +432,6 @@ def test_camera_positions(
         output_dir=output_dir,
         view_angle=view_angle,
         mask_mode=mask_mode,
-        debug=True,
     )
 
 
