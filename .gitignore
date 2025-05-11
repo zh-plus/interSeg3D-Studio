@@ -12,4 +12,5 @@ yarn-error.log*
 /.pnp
 .pnp.js
 
-.vscode/*
+.env
+src/backend/partfield/weights/model_objaverse.ckpt

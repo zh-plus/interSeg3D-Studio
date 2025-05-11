@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-
 /**
  * Generate a color based on an object index
  * @param index The object index
@@ -9,6 +8,7 @@ import * as THREE from 'three';
  */
 export function getColorFromIndex(index: number, saturation = 1.0, lightness = 0.5): THREE.Color {
     // Use a consistent algorithm to generate colors (similar to the Python implementation)
+    index = Math.abs(index);
     const hue = (index * 50) % 360;
     return new THREE.Color().setHSL(hue / 360, saturation, lightness);
 }

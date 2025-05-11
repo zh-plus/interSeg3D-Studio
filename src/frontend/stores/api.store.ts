@@ -24,6 +24,8 @@ export const useApiStore = defineStore('api', () => {
     const analysisResults = ref<MaskObjectRecognitionResult[]>([]);
     const lastUpdateTime = ref<number | null>(null);
 
+    
+
     // Computed
     const hasResults = computed(() => analysisResults.value.length > 0);
     const hasClickData = computed(() => annotationStore.clickCount > 0);
@@ -135,6 +137,64 @@ export const useApiStore = defineStore('api', () => {
                 console.error('Invalid response format:', response.data);
                 throw new Error('Invalid response from server');
             }
+
+            console.log('Segmentation response:', response.data);
+
+            // Update message
+            processingMessage.value = 'Applying segmentation to point cloud';
+
+            // Apply segmentation asynchronously and wait for it to complete
+            await pointCloudStore.applySegmentation(response.data.segmentedPointCloud);
+
+            // Track progress from the point cloud store
+            const unwatch = pointCloudStore.$subscribe((mutation, state) => {
+                if (state.loadingProgress !== null) {
+                    processingProgress.value = state.loadingProgress;
+                }
+            });
+
+            // Recreate markers to keep them visible
+            annotationStore.recreateMarkers();
+
+            // Cleanup subscription
+            unwatch();
+
+            return true;
+        } catch (error: any) {
+            const errorMessage = handleApiError(error, 'Error running segmentation');
+            throw new Error(errorMessage);
+        } finally {
+            isProcessing.value = false;
+            processingMessage.value = '';
+            processingProgress.value = null;
+            operationLock.value = false;
+        }
+    };
+
+    const runPartSegmentation = async (catagory:string): Promise<boolean> => {
+        // TODO:这个条件得改一下
+        if (!hasClickData.value) return false;
+
+        if (operationLock.value || isProcessing.value) {
+            console.warn('Operation in progress. Please wait.');
+            return false;
+        }
+
+        operationLock.value = true;
+        isProcessing.value = true;
+        processingMessage.value = 'Running Part segmentation';
+
+        try {
+            const selectedObjectIndex = uiStore.selectedObjectIndex;
+            // Call API
+            const response = await apiService.runPartInference(selectedObjectIndex,catagory);
+
+            if (!response.data || !response.data.segmentedPointCloud) {
+                console.error('Invalid response format:', response.data);
+                throw new Error('Invalid response from server');
+            }
+
+            console.log('Segmentation response:', response.data);
 
             // Update message
             processingMessage.value = 'Applying segmentation to point cloud';
@@ -377,6 +437,7 @@ export const useApiStore = defineStore('api', () => {
         // Actions
         uploadPointCloud,
         runSegmentation,
+        runPartSegmentation,
         analyzeObjects,
         updateObjects,
         applyAnalysisLabel,

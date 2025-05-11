@@ -213,6 +213,29 @@ class ApiService {
     }
 
     /**
+     * Run Part inference on the current point cloud 
+     * @returns Promise with segmentation results
+     */
+    async runPartInference(selectedObjectIndex:any,catagory:string): Promise<AxiosResponse<InferenceResponse>> {
+        
+        try {
+            // Make request
+            return await api.post<InferenceResponse>('/part', {
+                selectedObjectIndex, 
+                catagory,
+            });
+        } catch (error) {
+            // Enhanced error logging
+            console.error('Inference request failed:', error);
+            if (axios.isAxiosError(error) && error.response) {
+                console.error('Response status:', error.response.status);
+                console.error('Response data:', error.response.data);
+            }
+            return Promise.reject(error);
+        }
+    }
+
+    /**
      * Run mask-based object recognition on the segmented point cloud
      * @param mask Array of integer values representing the segmentation mask
      * @returns Promise with object recognition results
