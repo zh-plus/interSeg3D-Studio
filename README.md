@@ -39,10 +39,23 @@ click-based segmentation algorithm and Gemini for 3D object recognition & descri
    https://github.com/ywyue/AGILE3D/blob/main/installation.md
    (Dont clone the repository, just install the environment. And try to use gcc-9 & g++-9 to install MinkowskiEngine.)
 
-3. Download the pre-trained model weights from:
+3. Continue to install packages for PartField according to the instructions:
+   ```bash
+    pip install psutil
+    pip install lightning==2.2 h5py yacs trimesh scikit-image loguru boto3
+    pip install mesh2sdf tetgen pymeshlab plyfile einops libigl polyscope potpourri3d simple_parsing arrgh open3d
+    pip install torch-scatter -f https://data.pyg.org/whl/torch-2.4.0+cu118.html (replace it to your torch and cuda version)
+    apt install libx11-6 libgl1 libxrender1
+    pip install vtk
+    ```
+
+4. Download the pre-trained model weights for Agile3D from:
    https://polybox.ethz.ch/index.php/s/RnB1o8X7g1jL0lM, and put it into the `src/backend/agile3d/weights` directory.
 
-4. Create a `.env` file in the `src/backend` directory with:
+5. Download the pre-trained model weights for PartField from:
+   https://huggingface.co/mikaelaangel/partfield-ckpt/blob/main/model_objaverse.ckpt, and put it into the `src/backend/partfield/weights` directory.
+
+6. Create a `.env` file in the `src/backend` directory with:
 
    ```
    GOOGLE_API_KEY='your_google_api_key'  # For object recognition
@@ -66,7 +79,8 @@ click-based segmentation algorithm and Gemini for 3D object recognition & descri
 
 1. Start the backend server:
    ```bash
-   python src/backend/app.py
+   cd src/backend
+   python app.py
    ```
 
 2. In a new terminal, start the frontend development server:
