@@ -42,24 +42,35 @@ click-based segmentation algorithm and Gemini for 3D object recognition & descri
 3. Continue to install packages for PartField according to the instructions:
    ```bash
     pip install psutil
-    pip install lightning==2.2 h5py yacs trimesh scikit-image loguru boto3
+    pip install lightning==2.2 h5py yacs trimesh scikit-image loguru boto3 plyfile
     pip install mesh2sdf tetgen pymeshlab plyfile einops libigl polyscope potpourri3d simple_parsing arrgh open3d
-    pip install torch-scatter -f https://data.pyg.org/whl/torch-2.4.0+cu118.html (replace it to your torch and cuda version)
-    apt install libx11-6 libgl1 libxrender1
+    pip install --no-index torch-scatter -f https://data.pyg.org/whl/torch-1.13.1+cu116.html (replace it to your torch and cuda version)
+    sudo apt install libx11-6 libgl1 libxrender1
     pip install vtk
+    # You may need to install MinkowskiEngine again using https://github.com/NVIDIA/MinkowskiEngine#installation
     ```
 
 4. Download the pre-trained model weights for Agile3D from:
    https://polybox.ethz.ch/index.php/s/RnB1o8X7g1jL0lM, and put it into the `src/backend/agile3d/weights` directory.
 
 5. Download the pre-trained model weights for PartField from:
-   https://huggingface.co/mikaelaangel/partfield-ckpt/blob/main/model_objaverse.ckpt, and put it into the `src/backend/partfield/weights` directory.
+   https://huggingface.co/mikaelaangel/partfield-ckpt/resolve/main/model_objaverse.ckpt, and put it into the
+   `src/backend/partfield/weights` directory.
 
 6. Create a `.env` file in the `src/backend` directory with:
 
    ```
    GOOGLE_API_KEY='your_google_api_key'  # For object recognition
    ```
+
+#### Tested Deps
+
+```
+torch==1.13.1+cu116
+pytorch-lightning==2.2.5
+torchmetrics==1.5.2
+numpy==1.26.4
+```
 
 ### Frontend Setup
 
