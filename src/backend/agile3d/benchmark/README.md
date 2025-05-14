@@ -16,8 +16,6 @@ We provide the preprocessed data, here are some explanations for folders and fil
 	- **object_classes.txt**: contain the semantic label for each object
 
 
-
-
 ## Data preprocessing
 
 The following steps are not required since we provided the preprocessed data. Nevertheless, here is the instruction if you want to prepare the data yourself.

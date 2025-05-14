@@ -13,7 +13,7 @@
     "@mdi/font": "^7.4.47",
     "axios": "^1.8.3",
     "pinia": "^2.3.1",
-    "three": "^0.174.0",
+    "three": "^0.176.0",
     "vue": "^3.4.15",
     "vue-router": "^4.2.5",
     "vuetify": "^3.7.16"
@@ -21,13 +21,13 @@
   "devDependencies": {
     "@types/node": "^20.11.0",
     "@types/three": "^0.174.0",
-    "@vitejs/plugin-vue": "^5.0.3",
+    "@vitejs/plugin-vue": "^5.2.3",
     "@vue/eslint-config-typescript": "^12.0.0",
     "eslint": "^8.56.0",
     "eslint-plugin-vue": "^9.19.2",
     "sass": "^1.69.7",
     "typescript": "^5.5.3",
-    "vite": "^5.0.11",
+    "vite": "^6.3.5",
     "vue-tsc": "^1.8.27"
   }
 }
