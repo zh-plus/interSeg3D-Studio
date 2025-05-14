@@ -10,12 +10,14 @@ from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi import Request 
 from pydantic import BaseModel
 
 import app_utils  # Import our custom utility functions
 from app_utils import get_obj_color
 # Import the inference module
 from inference import Click, ClickHandler, PointCloudInference
+from part_inference import PartInference
 from logger import logger, StepTimer, timed
 from visual_obj_recognition import mask_obj_recognition
 
@@ -42,8 +44,11 @@ app.add_middleware(
 current_point_cloud = None
 current_point_cloud_path = None
 current_inference: PointCloudInference | None = None
+current_part_inference: PartInference | None = None
 current_results = None
 current_object_info = None  # Store object recognition results
+obj_mask = None
+
 
 
 class InferenceRequest(BaseModel):
@@ -126,16 +131,26 @@ async def upload_point_cloud(file: UploadFile = File(...)):
     Upload a point cloud file (PLY format)
     """
     global current_point_cloud, current_point_cloud_path, current_inference
-
+  
     # Create a temporary directory to store the uploaded file
     temp_dir = tempfile.mkdtemp()
     logger.info(f"Created temporary directory for upload: {temp_dir}")
+
+    
 
     try:
         # Save the uploaded file
         file_path = os.path.join(temp_dir, file.filename)
         with open(file_path, 'wb') as f:
-            shutil.copyfileobj(file.file, f)
+            shutil.copyfileobj(file.file, f) 
+
+        # # 重置文件流指针到开头
+        # file.file.seek(0)
+
+        # file_path2 = os.path.join(temp_dir_part, file.filename)
+        # with open(file_path2, 'wb') as f:
+        #     shutil.copyfileobj(file.file, f)
+
 
         logger.info(f"Saved uploaded file to: {file_path}")
 
@@ -210,7 +225,7 @@ async def run_inference(request: InferenceRequest):
     """
     Run inference on the current point cloud with the provided click data
     """
-    global current_inference, current_results
+    global current_inference, current_results, current_point_cloud, current_part_inference,obj_mask
 
     if not current_inference:
         return JSONResponse(
@@ -256,6 +271,33 @@ async def run_inference(request: InferenceRequest):
         async with StepTimer("Running neural network inference"):
             # Run inference
             mask = current_inference.run_inference()
+            obj_mask = mask.copy()
+
+        async with StepTimer("extract part point cloud"):
+            ply_folder = './temp'
+            if os.path.exists(ply_folder):
+                shutil.rmtree(ply_folder)
+                os.makedirs(ply_folder, exist_ok=True)
+            feature_folder='./exp_results'
+            if os.path.exists(feature_folder):
+                shutil.rmtree(feature_folder)
+                os.makedirs(feature_folder, exist_ok=True)
+            pcd_part = o3d.geometry.PointCloud()
+            coords = current_point_cloud["coords"]
+            colors = current_point_cloud["colors"]
+            unique_mask = np.unique(mask)
+            unique_mask = unique_mask[unique_mask > 0]
+            for obj_id in unique_mask:
+                # Create a mask for the current object
+                bool_mask= (mask == obj_id)              
+                pcd_part.points = o3d.utility.Vector3dVector(coords[bool_mask])
+                pcd_part.colors = o3d.utility.Vector3dVector(colors[bool_mask])
+                part_ply = f"./temp/part_{obj_id}.ply"
+                o3d.io.write_point_cloud(part_ply, pcd_part)
+
+        async with StepTimer("initialize partInference"):
+            current_part_inference = PartInference()
+            current_part_inference.predict()
 
         async with StepTimer("Saving results"):
             # Save the results
@@ -291,6 +333,62 @@ async def run_inference(request: InferenceRequest):
             status_code=500,
             content={"message": f"Error running inference: {str(e)}"}
         )
+
+
+@app.post("/api/part")
+@timed
+async def run_part_inference(request: Request):
+    global current_part_inference,obj_mask
+
+    body = await request.json()
+    selected_object_index = body.get("selectedObjectIndex")
+    catagory = body.get("catagory")
+     
+    if selected_object_index is None:
+        return JSONResponse(
+            status_code=400,
+            content={"message": "selectedObject is required"}
+        )
+    if catagory =="":
+        catagory = 3
+
+    if not current_part_inference:
+        return JSONResponse(
+            status_code=400,
+            content={"message": "No object selected"}
+        )
+
+    try:
+        async with StepTimer("part segmentation inference"):
+            ObjectIndex = int(selected_object_index)+1 
+            catagory = int(catagory)
+            mask = current_part_inference.cluster(ObjectIndex,catagory)
+            mask = mask.reshape(-1)  # 将 mask 转换为一维数组
+            obj_mask[obj_mask == ObjectIndex] = mask
+
+            # Prepare segmentation results for frontend
+            segmentation = obj_mask.tolist()
+
+            logger.info(f'Number of positive points in mask: {segmentation.count(True)}')
+
+        return JSONResponse(content={
+            "message": "Inference part completed successfully",
+            "segmentedPointCloud": {
+                "segmentation": segmentation
+            }
+        })
+
+
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        logger.error(f"Error running inference: {str(e)}\n{error_trace}")
+        return JSONResponse(
+            status_code=500,
+            content={"message": f"Error running inference: {str(e)}"}
+        )
+
+
 
 
 def mask_obj_recognition_worker(args):
@@ -538,4 +636,4 @@ if __name__ == "__main__":
 
     # Ensure output directory exists
     os.makedirs("./outputs", exist_ok=True)
-    uvicorn.run(app, host="0.0.0.0", port=9501)
+    uvicorn.run(app, host="0.0.0.0", port=9500)

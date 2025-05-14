@@ -236,7 +236,7 @@ class PointCloudInference:
 
             if pretraining_weights:
                 map_location = None if torch.cuda.is_available() else 'cpu'
-                model_dict = torch.load(pretraining_weights, map_location=map_location)
+                model_dict = torch.load(pretraining_weights, map_location=map_location,weights_only=False)
                 missing_keys, unexpected_keys = self.model.load_state_dict(model_dict['model'], strict=False)
 
                 unexpected_keys = [k for k in unexpected_keys if
@@ -331,6 +331,13 @@ class PointCloudInference:
             self.raw_coords_qv = torch.from_numpy(self.coords[unique_map]).float().to(self.device)
 
         with StepTimer("Computing backbone features"):
+
+            if self.coords_qv is None or len(self.coords_qv) == 0:
+                raise ValueError("Coordinates (self.coords_qv) are empty!")
+
+            if self.colors_qv is None or len(self.colors_qv) == 0:
+                raise ValueError("Features (self.colors_qv) are empty!")
+                
             # Compute backbone features
             data = ME.SparseTensor(
                 coordinates=ME.utils.batched_coordinates([self.coords_qv]),

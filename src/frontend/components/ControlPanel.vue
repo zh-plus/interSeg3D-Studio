@@ -155,6 +155,33 @@
       RUN SEGMENTATION
     </v-btn>
 
+    <v-row class="mt-4" align="center" justify="space-between" dense>
+  <!-- 按钮 -->
+  <v-col cols="12" md="9" lg="8">
+    <v-btn
+        :disabled="!pointCloudStore.pointCloudData.file || !apiStore.hasClickData || apiStore.isProcessing || apiStore.operationLock"
+        :loading="apiStore.isProcessing && !apiStore.isAnalyzing"
+        block
+        color="primary"
+        x-large
+        @click="runPartSegmentation"
+    >
+      RUN PART SEGMENTATION
+    </v-btn>
+  </v-col>
+
+  <!-- 输入框 -->
+  <v-col cols="12" md="3" lg="4">
+    <v-text-field
+        v-model="catagory"
+        label="catagory"
+        outlined
+        dense
+        class="mt-2 mt-md-0"
+    ></v-text-field>
+  </v-col>
+</v-row>
+
     <v-btn
         :disabled="!pointCloudStore.segmentedPointCloud || apiStore.isProcessing || apiStore.isAnalyzing || apiStore.operationLock"
         :loading="apiStore.isAnalyzing"
@@ -184,6 +211,7 @@ import {computed} from 'vue';
 import SaveStatusIndicator from '@/components/viewer/SaveStatusIndicator.vue';
 import {getCssColorFromIndex} from '@/utils/color.util';
 import {useAnnotationStore, useApiStore, usePointCloudStore, useUiStore} from '@/stores';
+import { ref } from 'vue';
 
 // Store instances
 const pointCloudStore = usePointCloudStore();
@@ -236,6 +264,9 @@ const saveStatus = computed((): 'unsaved' | 'saving' | 'saved' => {
     return 'saved';
   }
 });
+
+// input the catagory of part segmantation
+const catagory = ref<string>('');
 
 /**
  * Function to get style for object list items
@@ -425,6 +456,18 @@ function selectObject(index: number) {
 async function runSegmentation() {
   try {
     await apiStore.runSegmentation();
+    emit('segmentation-run');
+  } catch (error: any) {
+    alert(error.message);
+  }
+}
+
+/**
+ * Part segmentation
+ */
+async function runPartSegmentation() {
+  try {
+    await apiStore.runPartSegmentation(catagory.value);
     emit('segmentation-run');
   } catch (error: any) {
     alert(error.message);
