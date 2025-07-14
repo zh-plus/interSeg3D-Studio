@@ -6,5 +6,5 @@ python main.py --dataset_mode=multi_obj \
                --val_list=data/ScanNet/val_list.json \
                --lr=1e-4 \
                --epochs=1100 \
-               --lr_drop=[1000] \
+               --lr_drop=1000 \
                --job_name=train_multi_obj_scannet40

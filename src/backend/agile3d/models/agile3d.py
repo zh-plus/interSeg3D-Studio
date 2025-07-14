@@ -54,6 +54,17 @@ class Agile3d(nn.Module):
             nn.Linear(hidden_dim, hidden_dim)
         )
 
+        self.mask_regressor = nn.Sequential(
+            nn.Linear(2 * hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.LayerNorm(hidden_dim),
+            nn.Dropout(0.05),
+            nn.Linear(hidden_dim, hidden_dim // 2),
+            nn.ReLU(),
+            nn.Linear(hidden_dim // 2, 1),
+            nn.Sigmoid()
+        )
+
         if self.pos_enc_type == "legacy":
             self.pos_enc = PositionalEncoding3D(channels=self.mask_dim)
         elif self.pos_enc_type == "fourier":
@@ -301,7 +312,7 @@ class Agile3d(nn.Module):
                     queries = self.ffn_attention[decoder_counter][i](
                         output
                     ) # [num_queries, 128]
-
+                    # 下一层 decoder 使用的是上一层 refine 后的 query 和点云：
                     src_pcd = self.s2c_attention[decoder_counter][i](
                         src_pcd,
                         queries, # [num_queries, 128]
@@ -338,42 +349,82 @@ class Agile3d(nn.Module):
 
         return out
 
-
-    def mask_module(self, fg_query_feat, bg_query_feat, mask_features, ret_attn_mask=True,
-                                fg_query_num_split=None):
-
+    def mask_module(self, fg_query_feat, bg_query_feat, mask_features, ret_attn_mask=True, fg_query_num_split=None):
+        N_point = mask_features.shape[0]  # 一般是 [N_point, D]
+        # Normalize
         fg_query_feat = self.decoder_norm(fg_query_feat)
-        fg_mask_embed = self.mask_embed_head(fg_query_feat)
-
-        fg_prods = mask_features @ fg_mask_embed.T
-        fg_prods = fg_prods.split(fg_query_num_split, dim=1)
-
-        fg_masks = []
-        for fg_prod in fg_prods:
-            fg_masks.append(fg_prod.max(dim=-1, keepdim=True)[0])
-
-        fg_masks = torch.cat(fg_masks, dim=-1)
-        
         bg_query_feat = self.decoder_norm(bg_query_feat)
-        bg_mask_embed = self.mask_embed_head(bg_query_feat)
-        bg_masks = (mask_features @ bg_mask_embed.T).max(dim=-1, keepdim=True)[0]
+        # FG
+        fg_masks = []
+        fg_start = 0
+        for query_count in fg_query_num_split:
+            fg_feat = fg_query_feat[fg_start:fg_start + query_count]
+            fg_start += query_count
 
-        output_masks = torch.cat([bg_masks, fg_masks], dim=-1)
+            # 方案1：对每个 query 做逐点回归
+            for q in fg_feat:
+                q_expand = q.unsqueeze(0).expand(N_point, -1)  # [N_point, D]
+                concat_feat = torch.cat([q_expand, mask_features], dim=-1)  # [N_point, 2D]
+                pred_mask = self.mask_regressor(concat_feat)  # [N_point, 1]
+                fg_masks.append(pred_mask)  # [N_point, 1]
+
+            # 方案2：用平均作为该 object 的汇总
+            # obj_query_feat = fg_feat.mean(dim=0, keepdim=True)
+            # obj_query_feat_expand = obj_query_feat.repeat(N_point, 1)
+            # concat_feat = torch.cat([mask_features, obj_query_feat_expand], dim=-1)  # [N_point, 2D]，将mask_features与fg_query_feat特征拼接
+            # mask_pred = self.mask_regressor(concat_feat)  # [N_point, 1]
+            # fg_masks.append(mask_pred)
+
+        fg_masks = torch.cat(fg_masks, dim=1)  # [N_point, N_fg]
+        # BG
+        bg_masks = []
+        # 方案1：对每个 query 做逐点回归
+        for q in bg_query_feat:
+            q_expand = q.unsqueeze(0).expand(N_point, -1)  # [N_point, D]
+            concat_feat = torch.cat([q_expand, mask_features], dim=-1)  # [N_point, 2D]
+            pred_mask = self.mask_regressor(concat_feat)  # [N_point, 1]
+            bg_masks.append(pred_mask)
+
+        bg_masks = torch.cat(bg_masks, dim=1)  # [N_point, N_bg]
+        # 方案2：所有背景 query 合并为一个整体，信息被平均（太粗略）
+        # # 取所有 bg_query_feat 的平均
+        # bg_query_feat_mean = bg_query_feat.mean(dim=0, keepdim=True)  # [1, D]
+        # bg_query_feat_expand = bg_query_feat_mean.expand(N_point, -1)  # [N_point, D]
+        # concat_feat = torch.cat([bg_query_feat_expand, mask_features], dim=-1)  # [N_point, 2D]
+        # bg_mask_pred = self.mask_regressor(concat_feat)  # [N_point, 1]
+        #
+        # # 如果你仍想让 bg_masks 和 fg_masks 拼接一致，可人为复制成多列（虽然不推荐）
+        # bg_masks = bg_mask_pred.expand(-1, 1)  # 或留为 [N_point, 1]
+
+        # 拼接
+        output_masks = torch.cat([bg_masks, fg_masks], dim=1)  # [N_point, N_total_query]
 
         if ret_attn_mask:
-
-            output_labels = output_masks.argmax(1)
+            # output_masks = [N_point, N_bg + N_fg]
+            # 假设 query 顺序是先 bg 后 fg
+            # output_labels[i] == 0 表示第 i 个点被认为是背景 query 所负责
+            output_labels = output_masks.argmax(1)  # 每个点被分配给哪个 query
 
             bg_attn_mask = ~(output_labels == 0)
             bg_attn_mask = bg_attn_mask.unsqueeze(0).repeat(bg_query_feat.shape[0], 1)
             bg_attn_mask[torch.where(bg_attn_mask.sum(-1) == bg_attn_mask.shape[-1])] = False
 
             fg_attn_mask = []
-            for fg_obj_id in range(1, fg_masks.shape[-1]+1):
-                fg_obj_mask = ~(output_labels == fg_obj_id)
-                fg_obj_mask = fg_obj_mask.unsqueeze(0).repeat(fg_query_num_split[fg_obj_id-1], 1)
-                fg_obj_mask[torch.where(fg_obj_mask.sum(-1) == fg_obj_mask.shape[-1])] = False
+            # for fg_obj_id in range(1, fg_masks.shape[-1]+1):
+            #     fg_obj_mask = ~(output_labels == fg_obj_id)
+            #     fg_obj_mask = fg_obj_mask.unsqueeze(0).repeat(fg_query_num_split[fg_obj_id-1], 1)
+            #     fg_obj_mask[torch.where(fg_obj_mask.sum(-1) == fg_obj_mask.shape[-1])] = False
+            #     fg_attn_mask.append(fg_obj_mask)
+            cur_query = 1  # 从 query index = 1 开始（跳过背景）
+
+            for obj_idx, query_count in enumerate(fg_query_num_split):
+                fg_obj_mask = ~(output_labels == cur_query)
+                fg_obj_mask = fg_obj_mask.unsqueeze(0).repeat(query_count, 1)
+                if fg_obj_mask.sum(-1).eq(fg_obj_mask.shape[-1]).any():
+                    bad_rows = fg_obj_mask.sum(-1) == fg_obj_mask.shape[-1]
+                    fg_obj_mask[bad_rows] = False
                 fg_attn_mask.append(fg_obj_mask)
+                cur_query += 1
 
             fg_attn_mask = torch.cat(fg_attn_mask, dim=0)
 
@@ -382,6 +433,49 @@ class Agile3d(nn.Module):
             return output_masks, attn_mask
 
         return output_masks
+    # def mask_module(self, fg_query_feat, bg_query_feat, mask_features, ret_attn_mask=True,
+    #                             fg_query_num_split=None):
+    #
+    #     fg_query_feat = self.decoder_norm(fg_query_feat)
+    #     fg_mask_embed = self.mask_embed_head(fg_query_feat)
+    #
+    #     fg_prods = mask_features @ fg_mask_embed.T
+    #     fg_prods = fg_prods.split(fg_query_num_split, dim=1)
+    #
+    #     fg_masks = []
+    #     for fg_prod in fg_prods:
+    #         fg_masks.append(fg_prod.max(dim=-1, keepdim=True)[0])
+    #
+    #     fg_masks = torch.cat(fg_masks, dim=-1)
+    #
+    #     bg_query_feat = self.decoder_norm(bg_query_feat)
+    #     bg_mask_embed = self.mask_embed_head(bg_query_feat)
+    #     bg_masks = (mask_features @ bg_mask_embed.T).max(dim=-1, keepdim=True)[0]
+    #
+    #     output_masks = torch.cat([bg_masks, fg_masks], dim=-1)
+    #
+    #     if ret_attn_mask:
+    #
+    #         output_labels = output_masks.argmax(1)
+    #
+    #         bg_attn_mask = ~(output_labels == 0)
+    #         bg_attn_mask = bg_attn_mask.unsqueeze(0).repeat(bg_query_feat.shape[0], 1)
+    #         bg_attn_mask[torch.where(bg_attn_mask.sum(-1) == bg_attn_mask.shape[-1])] = False
+    #
+    #         fg_attn_mask = []
+    #         for fg_obj_id in range(1, fg_masks.shape[-1]+1):
+    #             fg_obj_mask = ~(output_labels == fg_obj_id)
+    #             fg_obj_mask = fg_obj_mask.unsqueeze(0).repeat(fg_query_num_split[fg_obj_id-1], 1)
+    #             fg_obj_mask[torch.where(fg_obj_mask.sum(-1) == fg_obj_mask.shape[-1])] = False
+    #             fg_attn_mask.append(fg_obj_mask)
+    #
+    #         fg_attn_mask = torch.cat(fg_attn_mask, dim=0)
+    #
+    #         attn_mask = torch.cat([fg_attn_mask, bg_attn_mask], dim=0)
+    #
+    #         return output_masks, attn_mask
+    #
+    #     return output_masks
 
 
 

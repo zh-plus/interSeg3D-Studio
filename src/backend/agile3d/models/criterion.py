@@ -74,31 +74,87 @@ class SetCriterion(nn.Module):
         return torch.where(numerator > eps, 1. - soft_iou, soft_iou * 0.)
 
 
+    # def loss_bce(self, outputs, targets, weights=None):
+    #
+    #     pred_masks = outputs['pred_masks']
+    #
+    #     loss = 0.0
+    #
+    #     for i in range(len(pred_masks)):
+    #         loss_sample = (F.cross_entropy(pred_masks[i], targets[i].long(), reduction="none") * weights[i]).mean()
+    #         loss += loss_sample
+    #
+    #     loss = loss/len(pred_masks)
+    #
+    #     return {
+    #         "loss_bce": loss
+    #     }
     def loss_bce(self, outputs, targets, weights=None):
-
-        pred_masks = outputs['pred_masks']
-
+        pred_masks = outputs['pred_masks']  # [B, N_point, N_query]
         loss = 0.0
 
         for i in range(len(pred_masks)):
-            loss_sample = (F.cross_entropy(pred_masks[i], targets[i].long(), reduction="none") * weights[i]).mean()
+            pred = pred_masks[i]  # [N_point, N_query]
+            target = targets[i]  # [N_point]，值为0（背景）或1~N_obj
+
+            num_classes = pred.shape[1]
+            # 转为 one-hot，shape: [N_point, N_query]
+            target_one_hot = F.one_hot(target, num_classes=num_classes).float().to(pred.device)
+
+            # BCE loss for each point-query pair
+            bce_loss = F.binary_cross_entropy(pred, target_one_hot, reduction='none')  # [N_point, N_query]
+
+            # 如果有 weights（[N_point]），广播后乘上
+            if weights is not None:
+                bce_loss = bce_loss * weights[i].unsqueeze(1)  # [N_point, 1] × [N_point, N_query]
+
+            loss_sample = bce_loss.mean()
             loss += loss_sample
 
-        loss = loss/len(pred_masks)
+        loss = loss / len(pred_masks)
+        return {"loss_bce": loss}
 
-        return {
-            "loss_bce": loss
-        }
-
+    # def loss_dice(self, outputs, targets, weights=None):
+    #
+    #     pred_masks = outputs['pred_masks']
+    #     loss = 0.0
+    #     for i in range(len(pred_masks)):
+    #         loss_sample = (self.multiclass_dice_loss(pred_masks[i], targets[i].long()) * weights[i]).mean()
+    #         loss += loss_sample
+    #
+    #     loss = loss/len(pred_masks)
+    #     return {
+    #         "loss_dice": loss
+    #     }
     def loss_dice(self, outputs, targets, weights=None):
-        
+        """
+        Soft Dice loss：适用于回归型 mask 输出
+        """
         pred_masks = outputs['pred_masks']
         loss = 0.0
+
         for i in range(len(pred_masks)):
-            loss_sample = (self.multiclass_dice_loss(pred_masks[i], targets[i].long()) * weights[i]).mean()
-            loss += loss_sample
-            
-        loss = loss/len(pred_masks)
+            pred = pred_masks[i]  # [N_point, C]
+            N, C = pred.shape
+
+            # targets[i]: [N_point] → one-hot
+            target_onehot = F.one_hot(targets[i].long(), num_classes=C).float().to(pred.device)
+
+            if weights is not None:
+                weight = weights[i].unsqueeze(1).expand_as(target_onehot)
+                pred = pred * weight
+                target_onehot = target_onehot * weight
+
+            pred = pred.flatten(1)  # [N, C] → [N, C]
+            target = target_onehot.flatten(1)
+
+            numerator = 2.0 * (pred * target).sum(0)  # [C]
+            denominator = (pred + target).sum(0)  # [C]
+
+            dice = (numerator + 1e-6) / (denominator + 1e-6)
+            loss += (1 - dice).mean()
+
+        loss = loss / len(pred_masks)
         return {
             "loss_dice": loss
         }
