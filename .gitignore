@@ -4,6 +4,7 @@
 outputs
 .idea
 src/frontend/.env
+./scripts
 
 /node_modules
 npm-debug.log*
