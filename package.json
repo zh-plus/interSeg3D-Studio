@@ -1,0 +1,17 @@
+{
+  "name": "interactive-seg-3d",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "src/frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run frontend:dev\" \"npm run backend:dev\"",
+    "frontend:dev": "npm run dev --workspace=src/frontend",
+    "frontend:build": "npm run build --workspace=src/frontend",
+    "backend:dev": "python src/backend/app.py"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

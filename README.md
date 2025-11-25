@@ -1,0 +1,208 @@
+# interSeg3D-Studio
+
+An web-based interactive 3D point cloud annotation tool, using [PinPoint3D](https://github.com/Quit123/PinPoint3D) for
+click-based segmentation algorithm and Gemini for 3D object recognition & description.
+
+> [!NOTE]  
+> Note that this project is still in development. The current version is a prototype and may contain bugs.
+
+
+![interSeg3D-Studio](assets/MainUI.png)
+
+## Features
+
+- **Interactive 3D Annotation**: Easily mark and annotate objects in 3D point clouds using positive and negative clicks
+- **AI-Powered Segmentation**: Click-based segmentation
+   with [PinPoint3D model](None)
+  <!-- with [PinPoint3D model](https://github.com/ywyue/AGILE3D) -->
+  ![seg-demo.gif](assets/seg-demo.gif)
+- **Object Analysis**: Automatically identify and describe objects in your scene
+  ![Analyze](assets/Object%20Analyze.png)
+- **Metadata Loading**: Import previous annotations and object information from metadata files
+
+## Installation
+
+### Prerequisites
+
+- Node.js (v16 or newer)
+- Python 3.10 (recommended, but should work with 3.8+)
+- CUDA-compatible GPU (recommended)
+
+### Backend Setup
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/zh-plus/interSeg3D-Studio
+   cd interSeg3D-Studio
+   ```
+
+2. Install PinPoint3D according to the instructions at:
+   None
+   <!-- https://github.com/ywyue/AGILE3D/blob/main/installation.md -->
+   (Dont clone the repository, just install the environment. And try to use gcc-9 & g++-9 to install MinkowskiEngine.)
+
+3. Download the pre-trained model weights from:
+   https://drive.google.com/file/d/1Rg2JDjh8iFGKwzP0UMLBCkce7bCvO5-D/view?usp=drive_link, and put it into the `src/backend/pinpoint3d/weights` directory.
+
+4. Create a `.env` file in the `src/backend` directory with:
+
+   ```
+   GOOGLE_API_KEY='your_google_api_key'  # For object recognition
+   ```
+
+### Frontend Setup
+
+1. Install Node.js dependencies:
+   ```bash
+   cd src/frontend
+   npm install
+   ```
+
+2. Create a `.env` file in the `src/frontend` directory with:
+   ```
+   VITE_API_BASE_URL=http://localhost:9500
+   VITE_USE_PROXY=true
+   ```
+
+## Running the Application
+
+1. Start the backend server:
+   ```bash
+   python src/backend/app.py
+   ```
+
+2. In a new terminal, start the frontend development server:
+   ```bash
+   cd src/frontend
+   npm run dev
+   ```
+
+3. Open your browser and navigate to:
+   ```
+   http://localhost:3001
+   ```
+
+## Usage Guide
+
+### Interaction Modes
+
+The application has three main interaction modes:
+
+1. **Navigate Mode**: Rotate, pan, and zoom the view
+2. **Annotate Mode**: Mark points on objects or background
+3. **Select Mode**: Select and edit segmented objects
+
+### Basic Workflow
+
+1. **Upload** a PLY file using the file upload panel
+2. **Load metadata** to import previous annotations and object information (optional)
+3. **Create objects** by entering names and clicking "Create Object"
+4. **Select an object** from the list and switch to "Annotation Mode"
+5. **Mark points** on the object by clicking on the point cloud
+6. **Mark background** by switching to "Background" mode and clicking non-object areas
+7. **Run segmentation** by clicking the "RUN SEGMENTATION" button
+8. **(Optional) Analyze objects** to automatically identify and describe them (remember to click `APPLY LABEL` or
+   `APPLY ALL RESULTS`)
+9. **Switch to Select Mode** to click on segmented objects and edit their labels and descriptions
+10. **Save results** to download the segmented point cloud and metadata
+
+### Keyboard Shortcuts
+
+- **A**: Toggle between navigation and annotation modes
+- **S**: Activate select mode
+- **Enter**: Run segmentation
+- **N**: Create a new object with default name "new obj"
+- **Ctrl+Z**: Undo the last click
+- **Shift+Ctrl+Z**: Redo an undone click
+- **Ctrl+S**: Save object information
+
+### Mouse Controls
+
+- **Left-click + drag** (Navigation Mode): Rotate the view
+- **Right-click + drag**: Pan the view
+- **Scroll wheel**: Zoom in/out
+- **Left-click** (Annotation Mode): Mark a point
+- **Left-click** (Select Mode): Select an object to edit its label and description
+
+## How it works
+
+After segmenting the project interactively using clicks, all the objects are scanned from multiple angles and analyzed
+using the AI object recognition model. The model uses the LLM API to identify the objects and provide a description of
+the object. The description includes the object's name, color, and size.
+
+For example, the object are indicated using convex hulls and the cameras are positioned at green spheres.
+
+![Camera-Position](assets/Camera-Position.png)
+
+## Development
+
+### Project Structure
+
+```
+├── package.json
+├── src
+│   ├── backend
+│   │   ├── main.py               # Application entry point
+│   │   ├── app.py                # FastAPI application factory
+│   │   ├── container.py          # Dependency injection container
+│   │   ├── logger.py             # Logging configuration
+│   │   ├── inference.py          # Point cloud segmentation inference
+│   │   ├── view_rendering.py     # Multi-view rendering
+│   │   ├── visual_obj_recognition.py  # AI object recognition
+│   │   ├── app_utils.py          # Utility functions
+│   │   ├── normalize.py          # Point cloud normalization
+│   │   ├── requirements.txt      # Python dependencies
+│   │   ├── api/                  # API routes
+│   │   │   └── routes/           # Route handlers
+│   │   │       ├── upload.py     # File upload endpoints
+│   │   │       ├── inference.py  # Inference endpoints
+│   │   │       ├── recognition.py # Object recognition endpoints
+│   │   │       └── download.py   # File download endpoints
+│   │   ├── core/                 # Core business logic
+│   │   │   ├── services/         # Business services
+│   │   │   │   ├── inference_service.py
+│   │   │   │   ├── point_cloud_service.py
+│   │   │   │   ├── recognition_service.py
+│   │   │   │   └── export_service.py
+│   │   │   ├── models/           # Data models
+│   │   │   ├── state/            # Application state
+│   │   │   └── utils/            # Core utilities
+│   │   ├── infrastructure/       # Infrastructure layer
+│   │   │   ├── inference/        # Inference engine
+│   │   │   ├── rendering/        # Rendering services
+│   │   │   ├── storage/          # File storage
+│   │   │   ├── logging/          # Logging infrastructure
+│   │   │   └── llm/              # LLM integration
+│   │   ├── pinpoint3d/           # PinPoint3D model implementation
+│   │   │   ├── models/           # Model definitions
+│   │   │   ├── config/           # Model configurations
+│   │   │   ├── utils/            # Model utilities
+│   │   │   ├── weights/          # Model weights
+│   │   │   └── datasets/         # Dataset handling
+│   │   ├── config/               # Application configuration
+│   └── frontend
+│       ├── App.vue               # Main application component
+│       ├── components            # Vue components
+│       ├── composables           # Vue composition functions
+│       ├── services              # Service layer
+│       ├── types                 # TypeScript type definitions
+│       └── utils                 # Utility functions
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+- [PinPoint3D](None) for the segmentation models
+- [Three.js](https://threejs.org/) for 3D rendering capabilities
+- [Open3D](http://www.open3d.org/) for point cloud processing
