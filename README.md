@@ -203,6 +203,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Acknowledgments
 
-- [PinPoint3D](None) for the segmentation models
+- [PinPoint3D](https://github.com/Quit123/PinPoint3D) for the segmentation models
 - [Three.js](https://threejs.org/) for 3D rendering capabilities
 - [Open3D](http://www.open3d.org/) for point cloud processing
