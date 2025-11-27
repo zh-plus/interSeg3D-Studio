@@ -10,7 +10,7 @@ click-based segmentation algorithm and Gemini for 3D object recognition & descri
 
 - **Interactive 3D Annotation**: Easily mark and annotate objects in 3D point clouds using positive and negative clicks
 - **AI-Powered Segmentation**: Click-based segmentation
-   with [PinPoint3D model](None)
+   with [PinPoint3D model](https://drive.google.com/file/d/1Rg2JDjh8iFGKwzP0UMLBCkce7bCvO5-D/view?usp=drive_link)
   <!-- with [PinPoint3D model](https://github.com/ywyue/AGILE3D) -->
   ![seg-demo.gif](assets/demo.gif)
 - **Object Analysis**: Automatically identify and describe objects in your scene
@@ -39,7 +39,7 @@ click-based segmentation algorithm and Gemini for 3D object recognition & descri
    (Dont clone the repository, just install the environment. And try to use gcc-9 & g++-9 to install MinkowskiEngine.)
 
 3. Download the pre-trained model weights from:
-   https://drive.google.com/file/d/1Rg2JDjh8iFGKwzP0UMLBCkce7bCvO5-D/view?usp=drive_link, and put it into the `src/backend/pinpoint3d/weights` directory.
+   [PinPoint3D model](https://drive.google.com/file/d/1Rg2JDjh8iFGKwzP0UMLBCkce7bCvO5-D/view?usp=drive_link), and put it into the `src/backend/pinpoint3d/weights` directory.
 
 4. Create a `.env` file in the `src/backend` directory with:
 
