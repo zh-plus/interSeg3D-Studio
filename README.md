@@ -10,8 +10,7 @@ and **Gemini** (for 3D object recognition & description).
 
 - **Interactive 3D Annotation**: Easily mark and annotate objects in 3D point clouds using positive and negative clicks
 - **AI-Powered Segmentation**: Click-based segmentation
-   with [PinPoint3D model](https://drive.google.com/file/d/1Rg2JDjh8iFGKwzP0UMLBCkce7bCvO5-D/view?usp=drive_link)
-  <!-- with [PinPoint3D model](https://github.com/ywyue/AGILE3D) -->
+   with [PinPoint3D model](https://github.com/Quit123/PinPoint3D)
   ![seg-demo.gif](assets/demo.gif)
 - **Object Analysis**: Automatically identify and describe objects in your scene
   ![Analyze](assets/Object%20Analyze.png)
