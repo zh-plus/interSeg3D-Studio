@@ -1,161 +1,126 @@
+﻿<p align="center">
+<h1 align="center">PinPoint3D: Fine-Grained 3D Part Segmentation from a Few Clicks</h1>
 <p align="center">
-<h1 align="center">AGILE3D: Attention Guided Interactive Multi-object 3D Segmentation</h1>
-<p align="center">
-<a href="https://n.ethz.ch/~yuayue/"><strong>Yuanwen Yue</strong></a>
+<a href="https://github.com/Quit123"><strong>Bojun Zhang</strong></a>
 ,
-<a href="https://www.vision.rwth-aachen.de/person/218/"><strong>Sabarinath Mahadevan</strong></a>
+<a href="https://github.com/jian-77"><strong>Hangjian Ye</strong></a>
 ,
-<a href="https://jonasschult.github.io/"><strong>Jonas Schult</strong></a>
+<a href="https://github.com/zh-plus"><strong>Hao Zheng</strong></a>
 ,
-<a href="https://francisengelmann.github.io/"><strong>Francis Engelmann</strong></a>
+<a href="https://github.com/Cara-Zinc"><strong>Jianzheng Huang</strong></a>
 <br>
-<a href="https://www.vision.rwth-aachen.de/person/1/"><strong>Bastian Leibe</strong></a>
+<a href="https://pinpoint3d.online"><strong>Zhengyu Lin</strong></a>
 , 
-<a href="https://igp.ethz.ch/personen/person-detail.html?persid=143986"><strong>Konrad Schindler</strong></a>
+<a href="https://pinpoint3d.online"><strong>Zhenhong Guo</strong></a>
 ,
-<a href="https://theodorakontogianni.github.io/"><strong>Theodora Kontogianni</strong></a>
+<a href="https://pinpoint3d.online"><strong>Feng Zheng</strong></a>
 </p>
-<h2 align="center">ICLR 2024</h2>
-<h3 align="center"><a href="https://arxiv.org/abs/2306.00977">Paper</a> | <a href="https://ywyue.github.io/AGILE3D/">Project Webpage</a></h3>
+<!-- <h2 align="center">ICLR 2024</h2> -->
+<h3 align="center"><a href="https://arxiv.org/abs/2509.25970">Paper</a> | <a href="https://pinpoint3d.online">Project Webpage</a></h3>
 </p>
 <p align="center">
 <img src="./imgs/teaser.gif" width="500"/>
 </p>
 <p align="center">
-<strong>AGILE3D</strong> supports interactive multi-object 3D segmentation, where a user collaborates with a deep learning model to segment multiple 3D objects simultaneously, by providing interactive clicks.
+<strong>PinPoint3D</strong> supports interactive multi-granularity 3D segmentation, where a user provides point clicks to obtain both object- and part-level masks efficiently in sparse scene point clouds.
 </p>
 
-## News :loudspeaker:
+## Installation 🔨
 
-- [2024/02/05] Benchmark data, training and evaluation code were released.
-- [2024/01/19] Our interactive segmentation tool was released. Try your own scans! :smiley:
-- [2024/01/16] AGILE3D was accepted to ICLR 2024 :tada:
+For training and evaluation, please follow the [installation.md](https://github.com/Quit123/PinPoint3D/blob/main/installation.md) to set up the environments.
 
+## Interactive Tool 🎮
 
-<details open="open" style='padding: 10px; border-radius:5px 30px 30px 5px; border-style: solid; border-width: 1px;'>
-  <summary>Table of Contents</summary>
-  <ol>
-    <li>
-      <a href="#installation-hammer">Installation</a>
-    </li>
-    <li>
-      <a href="#interactive-tool-video_game">Interactive Tool</a>
-    </li>
-    <li>
-      <a href="#benchmark-setup-dart">Benchmark Setup</a>
-    </li>
-    <li>
-      <a href="#training-rocket">Training</a>
-    </li>
-    <li>
-      <a href="#evaluation-chart_with_upwards_trend">Evaluation</a>
-    </li>
-    <li>
-      <a href="#citation-mortar_board">Citation</a>
-    </li>
-    <li>
-      <a href="#acknowledgment-pray">Acknowledgment</a>
-    </li>
-  </ol>
-</details>
-
-## Installation :hammer:
-
-Foe training and evaluation, please follow the [installation.md](https://github.com/ywyue/AGILE3D/tree/main/installation.md) to set up the environments.
-
-## Interactive Tool :video_game:
-
-Please follow [this instruction](https://github.com/ywyue/AGILE3D/tree/main/demo.md) to play with the interactive tool yourself.  **It also works without GPU.**
+Please visit [interSeg3D-Studio
+](https://github.com/zh-plus/interSeg3D-Studio) to experience the interactive annotation tool. It is a professional annotation platform designed specifically for the PinPoint3D model.
 
 <p align="center">
-<img src="./imgs/demo.gif" width="75%" />
+<img src="./assets/demo.gif" width="75%" />
 </p>
 
-We present an **interactive** tool that allows users to segment/annotate **multiple 3D objects** together, in an **open-world** setting. Although the model was only trained on ScanNet training set, it can also segment unseen datasets like S3DIS, ARKitScenes, and even outdoor scans like KITTI-360. Please check the [project page](https://ywyue.github.io/AGILE3D/) for more demos. Also try your own scans :smiley:
+## Training 🚀
 
-## Benchmark Setup :dart:
+We design a new integrated dataset, PartScan, by integrating PartNet and ScanNet, and leveraging [PartField](https://github.com/nv-tlabs/PartField) to obtain part-level masks from object point clouds in ScanNet, thereby enhancing the generalization capability of PinPoint3D. You can download PartScan from [here](https://drive.google.com/file/d/1ahB1ugwTmGuNrvzHXqkEYerGs15DYSnH/view?usp=drive_link).
 
-We conduct evaluation in both *interactive single-object 3D segmentation* and *interactive multi-object 3D segmentation*. For the former, we adopt the protocol from [InterObject3D](https://github.com/theodorakontogianni/InterObject3D). For the latter, we propose our own setup since there was no prior work.
-
-Our quantitative evaluation involves the following datasets: ScanNet (inc. ScanNet40 and ScanNet20), S3DIS and KITTI-360. We provide the processed data in the required format for both benchmarks. You can download the data from [Google Drive](https://drive.google.com/file/d/1cqWgVlwYHRPeWJB-YJdz-mS5njbH4SnG/view?usp=sharing). If Google Drive does not work for you, the data can also be downloaded from [here](https://polybox.ethz.ch/index.php/s/vW5GtSDlf86k2Td). Please unzip them to the `data` folder.
-
-If you want to learn more about the benchmark setup, explanations for the processed data, and data processing scripts, see the 
-[benchmark document](https://github.com/ywyue/AGILE3D/tree/main/benchmark/README.md).
-
-
-## Training :rocket:
-
-We train a single model in multi-object setup on ScanNet40 training set. Once trained, we evaluate the model on both multi-object and single-object setups on ScanNet40, S3DIS, KITTI-360. 
-
-The command for training AGILE3D with iterative training on ScanNet40 is as follows:
+The command for training PinPoint3D with iterative training on PartScan is as follows:
 
 ```shell
-./scripts/train_multi_scannet40.sh
+bash ./scripts/train_partscan.sh
 ```
 
-> Note: in the paper we also conducted one experiment where we train AGILE3D on ScanNet20 and evaluate the model on ScanNet40 (1st row in Tab. 1). Instructions for this setup will come later.
 
-## Evaluation :chart_with_upwards_trend:
+## Evaluation 📊
 
-We provide the csv result files in the [results](https://github.com/ywyue/AGILE3D/tree/main/results) folder, which can be directly fed into the evaluator for metric calculation. If you want to run the inference and do the evaluation yourself, download the pretrained [model](https://polybox.ethz.ch/index.php/s/RnB1o8X7g1jL0lM) and move it to the `weights` folder. Then run:
+There are two datasets we provide for evaluation. Firstly, PartScan, a specialized dataset that integrates PartNet with ScanNet, and we evaluate the IoU of the original PartNet part masks within real-world ScanNet scenes. The second is MultiScan, which shows relatively modest results due to its coarser part granularity. You can download MultiScan from You can download MultiScan from [here](https://drive.google.com/file/d/1QlwEFGIjPmiXG-R-UZweMcqaEFisYu9t/view?usp=drive_link).
 
-### Evaluation on interactive multi-object 3D segmentation:
+We provide the csv result files in the results folder, which can be directly fed into the evaluator for metric calculation. If you want to run the inference and do the evaluation yourself, download the pretrained [model](https://drive.google.com/file/d/1Rg2JDjh8iFGKwzP0UMLBCkce7bCvO5-D/view?usp=sharing) and move it to the weights folder. Then run:
 
-- ScanNet40:
+### Evaluation on interactive multi parts 3D segmentation 
+
+- PartNet in Scene:
 ```shell
-./scripts/eval_multi_scannet40.sh
-```
-- S3DIS:
-```shell
-./scripts/eval_multi_s3dis.sh
-```
-- KITTI-360:
-```shell
-./scripts/eval_multi_kitti360.sh
+bash ./scripts/eval_extend_val.sh
 ```
 
-### Evaluation on interactive single-object 3D segmentation:
+---
 
-- ScanNet40:
-```shell
-./scripts/eval_single_scannet40.sh
-```
-- S3DIS:
-```shell
-./scripts/eval_single_s3dis.sh
-```
-- KITTI-360:
-```shell
-./scripts/eval_single_kitti360.sh
-```
+We provide two sets of quantitative benchmarks to evaluate PinPoint3D on both **fine-grained part-level segmentation** and **coarse object-level segmentation**.
 
-### Compute AP scores for interactive single-object 3D segmentation:
-In Tab. 3 in our main paper, we also report AP scores of AGILE3D in comparison with Mask3D. To reproduce our results, run:
-- ScanNet20 seen classes:
-```shell
-python compute_ap.py --result_file=results/our_single_scannet20_seen.csv
-```
+The first table compares part-level segmentation performance across three models: the part-aware baseline **PointSAM**, the predecessor model **AGILE3D**, and our method **PinPoint3D**, evaluated under multi-click settings (IoU@1/3/5).
 
-- ScanNet20 unseen classes:
-```shell
-python compute_ap.py --result_file=results/our_single_scannet20_unseen.csv
-```
-## Citation :mortar_board:
+### Part-level Segmentation Results (SyntheticData & MultiScan)
+
+
+|      Method      |            Eval             | IoU₁ | IoU₃ | IoU₅ |
+|:----------------:|:---------------------------:|:----:|:----:|:----:|
+|     PointSAM     | SyntheticData (random-part) | 46.2 | 50.1 | 51.4 |
+|     AGile3D      | SyntheticData (random-part) | 39.8 | 58.4 | 64.9 |
+| **PinPoint3D (Ours)** | SyntheticData (random-part) | **50.0** | **65.9** | **69.7** |
+|     PointSAM     | SyntheticData (all-part)    | 48.4 | 52.6 | 52.7 |
+|     AGile3D      | SyntheticData (all-part)    | 39.1 | 61.1 | 66.7 |
+| **PinPoint3D (Ours)** | SyntheticData (all-part)    | **55.8** | **68.4** | **71.3** |
+|     PointSAM     | MultiScan (random-part)     | **44.4** | 54.9 | 58.1 |
+|     AGile3D      | MultiScan (random-part)     | 40.8 | 59.3 | 66.5 |
+| **PinPoint3D (Ours)** | MultiScan (random-part)     | 44.0 | **60.8** | **66.8** |
+|     PointSAM     | MultiScan (all-part)        | **44.9** | 54.0 | 56.1 |
+|     AGile3D      | MultiScan (all-part)        | 42.1 | 61.2 | 67.5 |
+| **PinPoint3D (Ours)** | MultiScan (all-part)        | 44.4 | **62.7** | **68.1** |
+
+---
+
+Beyond the primary part-segmentation task, we also test whether part-aware modeling impacts object-level segmentation, using PartScan-object and MultiScan (**with all parts merged into one object mask**). PinPoint3D maintains AGILE3D’s object-segmentation performance and even performs better on PartScan-object.
+
+| Method                | Test Dataset | IoU₁  | IoU₃  | IoU₅  |
+|-----------------------|--------------|-------|-------|-------|
+| AGILE3D               | PartScan     | 83.64 | 96.87 | 97.69 |
+| **PinPoint3D (Ours)** | PartScan     | **86.7** | **97.0** | **98.0** |
+| **AGILE3D**               | MultiScan    | **58.46** | **75.04** | **81.02** |
+| PinPoint3D (Ours) | MultiScan    | 57.1 | 72.3 | 78.6 |
+
+
+
+## Citation 🎓
 
 If you find our code or paper useful, please cite:
 
-```
-@inproceedings{yue2023agile3d,
-  title     = {{AGILE3D: Attention Guided Interactive Multi-object 3D Segmentation}},
-  author    = {Yue, Yuanwen and Mahadevan, Sabarinath and Schult, Jonas and Engelmann, Francis and Leibe, Bastian and Schindler, Konrad and Kontogianni, Theodora},
-  booktitle = {International Conference on Learning Representations (ICLR)},
-  year      = {2024}
+```shell
+
+@misc{zhang2025pinpoint3dfinegrained3dsegmentation,
+title={PinPoint3D: Fine-Grained 3D Part Segmentation from a Few Clicks}, 
+author={Bojun Zhang and Hangjian Ye and Hao Zheng and Jianzheng Huang and Zhengyu Lin and Zhenhong Guo and Feng Zheng},
+year={2025},
+eprint={2509.25970},
+archivePrefix={arXiv},
+primaryClass={cs.CV},
+url={https://arxiv.org/abs/2509.25970},
 }
+
 ```
 
-## Acknowledgment :pray:
 
-**We sincerely thank all volunteers who participated in our user study!** Francis Engelmann and Theodora Kontogianni are postdoctoral research fellows at the ETH AI Center. This project is partially funded by the ETH Career Seed Award - Towards Open-World 3D Scene Understanding,
-NeuroSys-D (03ZU1106DA) and BMBF projects 6GEM (16KISK036K).
 
-Parts of our code are built on top of [Mask3D](https://github.com/JonasSchult/Mask3D) and [InterObject3D](https://github.com/theodorakontogianni/InterObject3D). We also thank Anne Marx for the help in the initial version of the GUI.
+
+
+
+
+
