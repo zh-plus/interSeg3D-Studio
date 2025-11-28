@@ -3,6 +3,7 @@
 An web-based interactive 3D point cloud annotation tool, using [PinPoint3D](https://github.com/Quit123/PinPoint3D) for
 click-based segmentation algorithm and Gemini for 3D object recognition & description.
 
+👉 **Official Repository (Please Star!): [PinPoint3D](https://github.com/Quit123/PinPoint3D)**
 
 ![interSeg3D-Studio](assets/MainUI.png)
 
