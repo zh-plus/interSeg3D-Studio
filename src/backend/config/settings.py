@@ -13,7 +13,10 @@ class Settings(BaseSettings):
     https_proxy: str = ""
     
     # Model settings
-    model_weights_path: str = "/home/yehangjian/interSeg3D-Studio-test/src/backend/pinpoint3d/weights/checkpoint1099.pth"
+    CONFIG_DIR = Path(__file__).resolve().parent
+    BACKEND_DIR = CONFIG_DIR.parent   # src/backend
+    PINPOINT3D_DIR = BACKEND_DIR / "pinpoint3d"
+    model_weights_path: str = str(PINPOINT3D_DIR / "weights" / "checkpoint1099.pth")
     voxel_size: float = 0.05
     
     # Storage settings
